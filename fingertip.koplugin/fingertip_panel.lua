@@ -270,7 +270,7 @@ function Panel.computePanel(lines, opts, screen_w, screen_h, keep_lines)
     -- real lines are.
     local line_h = averageLineHeight(lines)
     local lift = math.floor(line_h * opts.lift + 0.5)
-    local ctx_side = math.floor(line_h * Panel.CONTEXT_SIDE + 0.5)
+    local ctx_side = opts.panel_ctx_side or math.floor(line_h * Panel.CONTEXT_SIDE + 0.5)
     local ctx_v = math.floor(line_h * Panel.CONTEXT_V + 0.5)
 
     -- Above the selection; or, at the top of the screen where there's no

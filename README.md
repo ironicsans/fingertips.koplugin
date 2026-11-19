@@ -38,7 +38,7 @@ Look under **Tools → Fingertip** in the top menu while a book is open. You'll 
   - Tap an action's box to put it on the bar or take it off.
   - The list is grouped the way the bar shows it: first set, second set (after More), and so on. Actions you've taken off the bar are listed last.
   - Actions marked "(only when it applies)", like Follow Link, appear on the bar only when they're relevant, for example when you've selected a link.
-- **Lifted copy**: what the copy above your finger shows while you drag. **Word under your finger** (the default) shows just that word with a little context, and it moves along with you as you drag, like the iOS magnifier. **Whole selection** shows the entire selection, with each line staying where it first appeared.
+- **Lifted copy**: what the copy above your finger shows while you drag. **Around your finger** (the default) shows a window about ten letters wide, centred on the word under your finger (a long word may not fit), and it moves along with you as you drag, like the iOS magnifier. **Whole selection** shows the entire selection, with each line staying where it first appeared.
 - **Outline thickness**: Thin, Medium (default), Thick or Extra thick.
 - **Corner rounding**: Square, Slight, Medium (default) or Round.
 - **Drop shadow**: None (default), Hard or Soft.

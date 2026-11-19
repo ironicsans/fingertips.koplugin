@@ -44,10 +44,15 @@ local LIFT = 2.25
 -- What the lifted copy shows while you drag: just the word under your finger
 -- (it moves along with you, like the iOS loupe), or the whole selection.
 local PANEL_CHOICES = {
-    { text = _("Word under your finger"), value = "word" },
+    { text = _("Around your finger"), value = "word" },
     { text = _("Whole selection"), value = "selection" },
 }
 local DEFAULT_PANEL = "word"
+-- Width of the "Around your finger" copy, in letters, centred on the word
+-- under the finger (a long word may not fit). A letter is taken as 0.4 of
+-- the line height, about right for book fonts at normal line spacing.
+local FOLLOW_LETTERS = 10
+local LETTER_PER_LINE = 0.4
 
 -- Outline thickness and corner radius, in KOReader's screen-scaled units
 -- (Screen:scaleBySize), so they look about the same size on any screen.
@@ -261,8 +266,11 @@ function Fingertip:update()
             local with_panel = self.phase == "drag" or self.phase == "handle"
             local panel_lines
             if with_panel and self.panel_mode == "word" then
-                local wb = self:getFingerWordBox()
-                panel_lines = { wb or lines[#lines] }
+                local wb = self:getFingerWordBox() or lines[#lines]
+                local w = math.floor(FOLLOW_LETTERS * LETTER_PER_LINE * wb.h + 0.5)
+                local x = math.floor(wb.x + wb.w / 2 - w / 2 + 0.5)
+                x = math.max(0, math.min(Screen:getWidth() - w, x))
+                panel_lines = { Geom:new{ x = x, y = wb.y, w = w, h = wb.h } }
             end
             layout = Panel.computeLayout(lines, {
                 lift = self.lift,
@@ -272,6 +280,8 @@ function Fingertip:update()
                 with_panel = with_panel,
                 with_handles = true,
                 panel_lines = panel_lines,
+                -- the fixed window already includes its context sideways
+                panel_ctx_side = panel_lines and 0 or nil,
             })
         end
     end
