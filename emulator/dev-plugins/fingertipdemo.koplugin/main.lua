@@ -41,8 +41,6 @@ function Demo:onReaderReady()
         G_reader_settings:delSetting(k)
     end
     if scenario == "rows2" then G_reader_settings:saveSetting("fingertip_bar_rows", 2) end
-    -- FT_DEMO_PANEL=line|selection: what the lifted copy shows (default: the setting)
-    if os.getenv("FT_DEMO_PANEL") and ft then ft.panel_mode = os.getenv("FT_DEMO_PANEL") end
     local style = os.getenv("FT_DEMO_STYLE")
     if style and ft then
         local b, r, s = style:match("^([%d%.]+),([%d%.]+),(%a+)$")
@@ -161,7 +159,7 @@ function Demo:onReaderReady()
                 for _, st in ipairs({ { 3, 9, "none" }, { 8, 9, "none" }, { 3, 0, "none" }, { 3, 14, "none" },
                                       { 3, 9, "hard" }, { 3, 9, "soft" } }) do
                     local layout = Panel.computeLayout(lines, { lift = 2.25, border = st[1], radius = st[2],
-                        shadow = st[3], with_panel = true, with_handles = true, panel_lines = { lines[1] } })
+                        shadow = st[3], with_handles = true, panel_line = lines[1] })
                     local t0 = time.now()
                     for _ = 1, 5 do Panel.paint(pbb, 0, 0, layout) end
                     logger.info(string.format("FtProbe style border=%d radius=%d shadow=%s paint ms=%.1f",

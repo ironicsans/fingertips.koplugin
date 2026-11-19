@@ -1,10 +1,10 @@
 --[[
 Fingertip: geometry and drawing of the lifted panel and the selection handles.
 
-The panel is the page itself, shifted up by the lift and cut to a shape: the
-selected lines plus a margin of context (a little of the text around them),
-outlined as one staircase-shaped panel with rounded corners. Inside, the
-selection keeps its shading and the context is drawn lighter.
+The panel is the page itself, shifted up by the lift and cut to a rounded
+box: the selected part of one line plus a margin of context (a little of the
+text around it). Inside, the selection keeps its shading and the context is
+drawn lighter.
 ]]
 
 local Blitbuffer = require("ffi/blitbuffer")
@@ -23,7 +23,7 @@ Panel.CONTEXT_V = 0.5      -- half a line above and below
 -- How dark the context stays: 1 = as on the page, 0 = invisible.
 local CONTEXT_INK = 0.33
 
-local SHADOW_OFFSET = 3 -- screen-scaled units, down and right
+local SHADOW_OFFSET = 4.5 -- screen-scaled units, down and right
 -- How much each shadow darkens the page at its densest (0-1). The soft one
 -- is blurred, which thins it out, so it starts stronger.
 local SHADOW_STRENGTH = { hard = 0.41, soft = 0.56 }
@@ -33,31 +33,6 @@ local ARC_STEPS = 8 -- segments per rounded corner
 local function sign(v)
     if v > 0 then return 1 elseif v < 0 then return -1 end
     return 0
-end
-
--- Clockwise corners (screen coordinates, y down) of one group of rows.
--- rows[i] = { a = left, b = right }; ys[0] = top, ys[i] = bottom of row i.
-local function groupCorners(rows, ys)
-    local n = #rows
-    local v = {}
-    local function add(x, y) v[#v + 1] = { x = x, y = y } end
-    add(rows[1].a, ys[0])
-    add(rows[1].b, ys[0])
-    for i = 1, n - 1 do -- right side, going down
-        if rows[i].b ~= rows[i + 1].b then
-            add(rows[i].b, ys[i])
-            add(rows[i + 1].b, ys[i])
-        end
-    end
-    add(rows[n].b, ys[n])
-    add(rows[n].a, ys[n])
-    for i = n - 1, 1, -1 do -- left side, going up
-        if rows[i + 1].a ~= rows[i].a then
-            add(rows[i + 1].a, ys[i])
-            add(rows[i].a, ys[i])
-        end
-    end
-    return v
 end
 
 -- Outline of a polygon with rounded corners, as a flat {x1, y1, x2, y2...}
@@ -223,9 +198,9 @@ end
 --[[
 Works out what to draw. lines: screen boxes of the selected lines, top to
 bottom. opts: lift (line heights), border and radius (screen-scaled units),
-shadow ("none", "hard", "soft"), with_panel, with_handles, and panel_lines:
-what the panel copies, when not the whole selection (e.g. just the word
-under the finger). The selected lines stay dark in the copy either way.
+shadow ("none", "hard", "soft"), with_handles, and panel_line: the line box
+the panel copies (no panel without one). All the selected lines stay dark in
+the copy.
 Returns nil when there is nothing to draw.
 ]]
 function Panel.computeLayout(lines, opts)
@@ -240,8 +215,8 @@ function Panel.computeLayout(lines, opts)
         table.insert(layout.parts, string.format("h%d,%d,%d,%d,%d,%d", s.x, s.top, s.bottom, e.x, e.top, e.bottom))
     end
 
-    if opts.with_panel then
-        local panel = Panel.computePanel(opts.panel_lines or lines, opts, screen_w, screen_h, lines)
+    if opts.panel_line then
+        local panel = Panel.computePanel(opts.panel_line, opts, screen_w, screen_h, lines)
         if panel then
             layout.panel = panel
             region = region and region:combine(panel.region) or panel.region
@@ -255,9 +230,8 @@ function Panel.computeLayout(lines, opts)
     return layout
 end
 
--- lines: what to copy; keep_lines: the selected lines (left dark).
-function Panel.computePanel(lines, opts, screen_w, screen_h, keep_lines)
-    keep_lines = keep_lines or lines
+-- line: the line box to copy; keep_lines: the selected lines (left dark).
+function Panel.computePanel(line, opts, screen_w, screen_h, keep_lines)
     local border = math.max(1, Screen:scaleBySize(opts.border))
     local radius = Screen:scaleBySize(opts.radius)
     local shadow_off, shadow_blur = 0, 0
@@ -266,117 +240,41 @@ function Panel.computePanel(lines, opts, screen_w, screen_h, keep_lines)
         if opts.shadow == "soft" then shadow_blur = math.max(1, math.floor(shadow_off / 2)) end
     end
 
-    -- One lift for the whole selection, so the copies stay stacked like the
-    -- real lines are.
-    local line_h = averageLineHeight(lines)
+    local line_h = line.h
     local lift = math.floor(line_h * opts.lift + 0.5)
-    local ctx_side = opts.panel_ctx_side or math.floor(line_h * Panel.CONTEXT_SIDE + 0.5)
+    local ctx_side = math.floor(line_h * Panel.CONTEXT_SIDE + 0.5)
     local ctx_v = math.floor(line_h * Panel.CONTEXT_V + 0.5)
 
-    -- Above the selection; or, at the top of the screen where there's no
-    -- room, below it with the same gap.
-    local first, last = lines[1], lines[#lines]
+    -- Above the line; or, at the top of the screen where there's no room,
+    -- below the whole selection with the same gap.
     local dy = -lift
-    if first.y + dy - ctx_v - border < 0 then
-        dy = (last.y + last.h - first.y) + (lift - line_h)
+    if line.y + dy - ctx_v - border < 0 then
+        local last = keep_lines[#keep_lines]
+        dy = (last.y + last.h - line.y) + (lift - line_h)
     end
     dy = math.floor(dy + 0.5)
 
-    -- Each line is a row: the line plus context left and right, plus the
-    -- outline. Rows on top of each other that overlap enough sideways share
-    -- one outline; anything else gets an outline of its own.
-    local min_overlap = 2 * math.max(radius, Screen:scaleBySize(9)) + 2 * border
-    local groups, group = {}, nil
-    for i = 1, #lines do
-        local l = lines[i]
-        local row = {
-            a = math.max(0, l.x - ctx_side - border),
-            b = math.min(screen_w, l.x + l.w + ctx_side + border),
-            top = l.y + dy, bottom = l.y + l.h + dy,
-        }
-        if group then
-            local prev = group[#group]
-            local overlap = math.min(prev.b, row.b) - math.max(prev.a, row.a)
-            local gap = row.top - prev.bottom
-            if overlap < min_overlap or math.abs(gap) > line_h / 2 then
-                group = nil
-            end
-        end
-        if not group then
-            group = {}
-            table.insert(groups, group)
-        end
-        table.insert(group, row)
+    -- The line plus context on all four sides, plus the outline.
+    local x0 = math.max(0, line.x - ctx_side - border)
+    local x1 = math.min(screen_w, line.x + line.w + ctx_side + border)
+    local y0 = math.max(0, line.y + dy - ctx_v - border)
+    local y1 = math.min(screen_h, line.y + line.h + dy + ctx_v + border)
+    local corners = { { x = x0, y = y0 }, { x = x1, y = y0 }, { x = x1, y = y1 }, { x = x0, y = y1 } }
+    local r = math.min(radius, (x1 - x0) / 2, (y1 - y0) / 2)
+    local radii = { r, r, r, r }
+    local outer = roundedPath(corners, radii, 0)
+    local shadow
+    if shadow_off > 0 then
+        shadow = {}
+        for i = 1, #outer do shadow[i] = outer[i] + shadow_off end
     end
-
-    -- Top and bottom of each group: context above and below; but where two
-    -- separate groups would overlap, they meet halfway between their lines.
-    for g = 1, #groups do
-        local rows = groups[g]
-        rows.y_top = rows[1].top - ctx_v - border
-        rows.y_bottom = rows[#rows].bottom + ctx_v + border
-    end
-    for g = 1, #groups - 1 do
-        local lo, hi = groups[g][#groups[g]], groups[g + 1][1]
-        if math.min(lo.b, hi.b) - math.max(lo.a, hi.a) > 0 then
-            local mid = math.floor((lo.bottom + hi.top) / 2)
-            groups[g].y_bottom = mid
-            groups[g + 1].y_top = mid
-        end
-    end
-
-    local shapes = {}
-    local bx0, by0, bx1, by1 = math.huge, math.huge, -math.huge, -math.huge
-    for g = 1, #groups do
-        local rows = groups[g]
-        local n = #rows
-        -- Line ends that almost line up would make tiny steps: line them up
-        -- (widening, never cutting text off).
-        for _pass = 1, 3 do
-            for i = 1, n - 1 do
-                local r1, r2 = rows[i], rows[i + 1]
-                if r1.b ~= r2.b and math.abs(r1.b - r2.b) < min_overlap then
-                    local m = math.max(r1.b, r2.b)
-                    r1.b, r2.b = m, m
-                end
-                if r1.a ~= r2.a and math.abs(r1.a - r2.a) < min_overlap then
-                    local m = math.min(r1.a, r2.a)
-                    r1.a, r2.a = m, m
-                end
-            end
-        end
-        local ys = { [0] = math.max(0, rows.y_top) }
-        for i = 1, n - 1 do
-            ys[i] = math.floor((rows[i].bottom + rows[i + 1].top) / 2)
-        end
-        ys[n] = math.min(screen_h, rows.y_bottom)
-
-        local corners = groupCorners(rows, ys)
-        local radii = {}
-        local nc = #corners
-        for i = 1, nc do
-            local c = corners[i]
-            local p = corners[(i - 2) % nc + 1]
-            local q = corners[i % nc + 1]
-            local len_in = math.abs(c.x - p.x) + math.abs(c.y - p.y)
-            local len_out = math.abs(q.x - c.x) + math.abs(q.y - c.y)
-            radii[i] = math.min(radius, len_in / 2, len_out / 2)
-            bx0, by0 = math.min(bx0, c.x), math.min(by0, c.y)
-            bx1, by1 = math.max(bx1, c.x), math.max(by1, c.y)
-        end
-        local outer = roundedPath(corners, radii, 0)
-        local shadow
-        if shadow_off > 0 then
-            shadow = {}
-            for i = 1, #outer do shadow[i] = outer[i] + shadow_off end
-        end
-        table.insert(shapes, {
-            outer = outer,
-            inner = roundedPath(corners, radii, border),
-            shadow = shadow,
-            corners = corners,
-        })
-    end
+    local shapes = { {
+        outer = outer,
+        inner = roundedPath(corners, radii, border),
+        shadow = shadow,
+        corners = corners,
+    } }
+    local bx0, by0, bx1, by1 = x0, y0, x1, y1
 
     local reach = shadow_off + 2 * shadow_blur
     local back = math.max(0, 2 * shadow_blur - shadow_off)

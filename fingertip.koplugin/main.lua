@@ -41,15 +41,6 @@ local Screen = Device.screen
 -- How far the copy is lifted, in line heights (measured top to top).
 local LIFT = 2.25
 
--- What the lifted copy shows while you drag: the line you start on (it
--- grows as you drag along it and goes away when you reach another line), or
--- the whole selection.
-local PANEL_CHOICES = {
-    { text = _("One line"), value = "line" },
-    { text = _("Whole selection"), value = "selection" },
-}
-local DEFAULT_PANEL = "line"
-
 -- Line lock. During a drag, KOReader isn't told where the finger is, but
 -- where a pointer is that trails it, like a bead on a string. Distances are
 -- in line heights, from the pointer up to the finger:
@@ -104,8 +95,6 @@ local Fingertip = WidgetContainer:extend{
 function Fingertip:init()
     self.enabled = G_reader_settings:nilOrTrue("fingertip_enabled")
     self.lift = LIFT
-    self.panel_mode = G_reader_settings:readSetting("fingertip_panel_mode", DEFAULT_PANEL)
-    if self.panel_mode ~= "selection" then self.panel_mode = "line" end
     self.finger = nil -- screen point of the finger (or the dragged handle)
     self.loupe_line_y = nil -- top of the line the drag started on
     self.loupe_hidden = false -- once the drag leaves that line, until the next one
@@ -372,20 +361,17 @@ function Fingertip:update()
     if self.enabled and self.phase then
         local lines = self:getLineBoxes()
         if lines then
-            local with_panel = self.phase == "drag" or self.phase == "handle"
-            local panel_lines
-            if with_panel and self.panel_mode == "line" then
-                local l = self:loupeLine(lines)
-                if l then panel_lines = { l } else with_panel = false end
+            local panel_line
+            if self.phase == "drag" or self.phase == "handle" then
+                panel_line = self:loupeLine(lines)
             end
             layout = Panel.computeLayout(lines, {
                 lift = self.lift,
                 border = self.border,
                 radius = self.radius,
                 shadow = self.shadow,
-                with_panel = with_panel,
                 with_handles = true,
-                panel_lines = panel_lines,
+                panel_line = panel_line,
             })
         end
     end
@@ -631,7 +617,6 @@ function Fingertip:addToMainMenu(menu_items)
                 callback = function() self:showArrange() end,
                 separator = true,
             },
-            self:choiceMenu(_("Lifted copy"), PANEL_CHOICES, "panel_mode", "fingertip_panel_mode"),
             self:choiceMenu(_("Outline thickness"), BORDER_CHOICES, "border", "fingertip_border"),
             self:choiceMenu(_("Corner rounding"), RADIUS_CHOICES, "radius", "fingertip_radius"),
             self:choiceMenu(_("Drop shadow"), SHADOW_CHOICES, "shadow", "fingertip_shadow"),
