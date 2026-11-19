@@ -8,6 +8,7 @@ When you long-press and drag to select text, your fingertip covers the words you
 - Each line's copy stays where it first appears. The current line's copy grows to the right, and when the selection reaches a new line, that line's copy is added below. A multi-line selection gets one merged panel whose outline steps in and out with the lines, with every corner rounded. When two lines barely overlap side to side, for example the last word of one line and the first word of the next, they get two separate boxes.
 - Handles appear at both ends of the selection as soon as you start, and they show up in the copy too.
 - On the top line of a page, where there's no room above, the panel goes below the selection.
+- The selection sticks to its line, so you can slide left and right without slipping onto the line above or below. To move down a line, drag until your finger is about two lines below the line being selected. That way your finger stays below the selection, not on top of it. To move up a line, drag until your finger is about half a line past the line's top. The same applies when you drag a handle. In the bottom-right and top-left corners, where KOReader lets you keep selecting onto the next or previous page, this is switched off so that still works.
 
 **When you lift your finger**
 - The panel disappears. In its place, an action bar appears above the selection, leaving the same gap, so it never covers the selection or its handles. When there's no room above, it goes below.
@@ -69,6 +70,7 @@ This runs a scripted session and saves screenshots to `emulator/shots/`. Set `FT
 - `rows2`: the two-row bar.
 - `loupe`: the Around your finger window as it slides, leaves the line and comes back on a handle.
 - `wrap`: a long-press on a word that wraps onto the next line.
+- `lock`: small wobbles up and down, then dragging down and back up, to show when the selection changes line.
 
 Other options:
 - `FT_DEMO_SHOTS=folder` saves the screenshots to a different folder.

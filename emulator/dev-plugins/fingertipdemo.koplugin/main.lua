@@ -1,7 +1,7 @@
 -- Dev-only driver for testing Fingertip in the desktop emulator.
 -- With FT_DEMO=1, once a book is ready it plays a scripted scenario, saves a
 -- screenshot after each step into $FT_DEMO_SHOTS, then quits.
--- FT_DEMO_SCENARIO: main (default), top, split, arrange, rows2, loupe, wrap.
+-- FT_DEMO_SCENARIO: main (default), top, split, arrange, rows2, loupe, wrap, lock.
 -- FT_DEMO_STYLE="border,radius,shadow" overrides the style settings.
 -- Not meant to be installed on a device.
 
@@ -87,7 +87,7 @@ function Demo:onReaderReady()
     elseif scenario == "split" then
         steps = {
             { "20-hold-line-end",   function() hl:onHold(nil, ges("hold", W * 0.80, hy)) end },
-            { "21-drag-next-start", function() hl:onHoldPan(nil, ges("hold_pan", W * 0.12, hy + H * 0.04)) end },
+            { "21-drag-next-start", function() hl:onHoldPan(nil, ges("hold_pan", W * 0.12, hy + H * 0.10)) end },
             { "22-released",        function() hl:onHoldRelease() end },
         }
     elseif scenario == "arrange" then
@@ -124,6 +124,28 @@ function Demo:onReaderReady()
             { "51-hold-its-second-half", function()
                 hl:onClose(); hl:onHold(nil, ges("hold", W * 0.06, hy + H * 0.04)) end },
         }
+    elseif scenario == "lock" then
+        -- Line lock: offsets are in line heights from the held line's middle.
+        local cy, lh
+        local function pan(x, dy)
+            hl:onHoldPan(nil, ges("hold_pan", x, cy + dy * lh))
+            logger.info("FtDemo: finger dy", dy, "lines", #(ft:getLineBoxes() or {}))
+        end
+        steps = {
+            { "60-hold", function()
+                hl:onHold(nil, ges("hold", W * 0.30, hy))
+                local l = ft:getLineBoxes()[1]
+                cy, lh = l.y + l.h / 2, l.h
+            end },
+            { "61-right-wobble-down", function() pan(W * 0.50, 0.45) end },
+            { "62-right-wobble-up",   function() pan(W * 0.65, -0.45) end },
+            { "63-down-1.8-still",    function() pan(W * 0.55, 1.8) end },
+            { "64-down-2.1-next",     function() pan(W * 0.55, 2.1) end },
+            { "65-down-3.1-next",     function() pan(W * 0.40, 3.1) end },
+            { "66-up-to-1.2-stays",   function() pan(W * 0.40, 1.2) end },
+            { "67-up-to-0.9-back",    function() pan(W * 0.40, 0.9) end },
+            { "68-released",          function() hl:onHoldRelease() end },
+        }
     elseif scenario == "loupe" then
         local function pan(x, y) hl:onHoldPan(nil, ges("hold_pan", x, y)) end
         steps = {
@@ -131,7 +153,7 @@ function Demo:onReaderReady()
             { "41-pan-right",      function() pan(W * 0.45, hy) end },
             { "42-pan-a-little",   function() pan(W * 0.45 + 4, hy) end },
             { "43-pan-further",    function() pan(W * 0.65, hy) end },
-            { "44-next-line",      function() pan(W * 0.40, hy + H * 0.04) end },
+            { "44-next-line",      function() pan(W * 0.40, hy + H * 0.10) end },
             { "45-back-up",        function() pan(W * 0.70, hy) end },
             { "46-released",       function() hl:onHoldRelease() end },
             { "47-grab-end",       function() grab("stop"); panBy(-W * 0.12, 0) end },
@@ -141,7 +163,7 @@ function Demo:onReaderReady()
         steps = {
             { "01-hold-word",      function() hl:onHold(nil, ges("hold", W * 0.30, hy)) end },
             { "02-drag-same-line", function() hl:onHoldPan(nil, ges("hold_pan", W * 0.75, hy)) end },
-            { "03-drag-3-lines",   function() hl:onHoldPan(nil, ges("hold_pan", W * 0.60, hy + H * 0.09)) end },
+            { "03-drag-3-lines",   function() hl:onHoldPan(nil, ges("hold_pan", W * 0.60, hy + H * 0.14)) end },
             { "04-released-bar",   function() hl:onHoldRelease() end },
         }
         if scenario == "main" then
@@ -149,10 +171,10 @@ function Demo:onReaderReady()
                 { "05-more",           function() ft.bar:nextSet() end },
                 { "06-more-again",     function() ft.bar:nextSet() end },
                 { "07-more-wraps",     function() ft.bar:nextSet() end },
-                { "08-drag-end-handle", function() grab("stop"); panBy(-W * 0.25, -H * 0.035) end },
-                { "09-end-released",   function() releaseAt(-W * 0.25, -H * 0.035) end },
-                { "10-drag-start-handle", function() grab("start"); panBy(-W * 0.2, -H * 0.03) end },
-                { "11-start-released", function() releaseAt(-W * 0.2, -H * 0.03) end },
+                { "08-drag-end-handle", function() grab("stop"); panBy(-W * 0.25, -H * 0.06) end },
+                { "09-end-released",   function() releaseAt(-W * 0.25, -H * 0.06) end },
+                { "10-drag-start-handle", function() grab("start"); panBy(-W * 0.2, -H * 0.05) end },
+                { "11-start-released", function() releaseAt(-W * 0.2, -H * 0.05) end },
                 { "12-tap-elsewhere",  function() ft.bar:onFtTap(nil, ges("tap", W * 0.5, H * 0.92)) end },
                 { "13-hold-word-again", function() hl:onHold(nil, ges("hold", W * 0.55, H * 0.6)) end },
                 { "14-release-word",   function() hl:onHoldRelease() end },

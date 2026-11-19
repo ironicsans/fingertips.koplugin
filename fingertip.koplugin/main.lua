@@ -57,6 +57,14 @@ local LETTER_PER_LINE = 0.4
 -- it follows the finger, few enough that e-ink isn't redrawing all the time.
 local FOLLOW_STEP_LETTERS = 1.5
 
+-- Line lock: while you drag, small moves up or down keep the selection on
+-- its line. Measured in line heights from the middle of that line, it moves
+-- down a line once the finger is on the line after next, which keeps the
+-- finger about a line below the text it's selecting; and up a line once the
+-- finger is half a line past the top edge.
+local LOCK_DOWN = 2.0
+local LOCK_UP = 1.0
+
 -- Outline thickness and corner radius, in KOReader's screen-scaled units
 -- (Screen:scaleBySize), so they look about the same size on any screen.
 local BORDER_CHOICES = {
@@ -132,8 +140,18 @@ function Fingertip:wrapHighlight()
 
     local orig_onHoldPan = hl.onHoldPan
     hl.onHoldPan = function(this, arg, ges, ...)
-        local ret = orig_onHoldPan(this, arg, ges, ...)
-        if ges and ges.pos then plugin.finger = { x = ges.pos.x, y = ges.pos.y } end
+        if not (plugin.enabled and ges and ges.pos and this.hold_pos) then
+            return orig_onHoldPan(this, arg, ges, ...)
+        end
+        -- KOReader gets the line-locked point instead of the finger's own.
+        local pos = plugin:lockedPoint(ges.pos)
+        local locked = {}
+        for k, v in pairs(ges) do locked[k] = v end
+        locked.pos = pos
+        local ret = orig_onHoldPan(this, arg, locked, ...)
+        plugin:relock()
+        -- The loupe follows the finger sideways, and the locked line.
+        plugin.finger = { x = ges.pos.x, y = pos.y }
         plugin:update()
         return ret
     end
@@ -227,6 +245,8 @@ function Fingertip:startLoupe(pos)
     self.finger = pos and { x = pos.x, y = pos.y } or nil
     self.loupe_line_y = nil
     self.loupe_hidden = false
+    self.lock = nil
+    self.relock_y = nil
 end
 
 -- The selection's line under the finger, or the nearest one. Using the line
@@ -263,6 +283,48 @@ function Fingertip:loupeLine(lines)
     local x = math.floor(cx - w / 2 + 0.5)
     x = math.max(0, math.min(Screen:getWidth() - w, x))
     return Geom:new{ x = x, y = line.y, w = w, h = line.h }
+end
+
+-- Where to tell KOReader the finger is during a drag: the same left-right,
+-- but on the middle of the line being selected until the finger has gone
+-- far enough up or down (LOCK_UP, LOCK_DOWN) to mean another line.
+function Fingertip:lockedPoint(pos)
+    local sw, sh = Screen:getWidth(), Screen:getHeight()
+    -- KOReader's corners for selecting across pages: leave those alone.
+    if (pos.y < sh / 8 or pos.y > sh * 7 / 8) and (pos.x < sw / 8 or pos.x > sw * 7 / 8) then
+        self.lock = nil
+        return pos
+    end
+    if not self.lock then
+        local lines = self:getLineBoxes()
+        if not lines then return pos end
+        local l = fingerLine(lines, self.finger or pos)
+        self.lock = { cy = l.y + l.h / 2, h = l.h }
+    end
+    local lk = self.lock
+    local d = pos.y - lk.cy
+    local y = lk.cy
+    if d > LOCK_DOWN * lk.h then
+        y = lk.cy + (math.floor((d - LOCK_DOWN * lk.h) / lk.h) + 1) * lk.h
+        self.relock_y = y
+    elseif d < -LOCK_UP * lk.h then
+        y = lk.cy - (math.floor((-d - LOCK_UP * lk.h) / lk.h) + 1) * lk.h
+        self.relock_y = y
+    end
+    y = math.max(0, math.min(sh - 1, math.floor(y + 0.5)))
+    return Geom:new{ x = pos.x, y = y, w = 0, h = 0 }
+end
+
+-- After moving to another line, lock onto that line's real position (line
+-- heights are only an estimate: paragraph gaps, headings...).
+function Fingertip:relock()
+    local y = self.relock_y
+    if not y then return end
+    self.relock_y = nil
+    local lines = self:getLineBoxes()
+    if not lines then return end
+    local l = fingerLine(lines, { x = 0, y = y })
+    self.lock = { cy = l.y + l.h / 2, h = l.h }
 end
 
 -- Recompute what to show for the current phase and selection, and ask for a
