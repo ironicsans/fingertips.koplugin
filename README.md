@@ -9,8 +9,8 @@ When you long-press and drag to select text, your fingertip covers the words you
 - Handles appear at both ends of the selection as soon as you start, and they show up in the copy too.
 - On the top line of a page, where there's no room above, the panel goes below the selection.
 - The selection sticks to its line, so you can slide left and right without slipping onto the line above or below. Your finger stays on its side of the end you're moving, and never slides on top of it:
-  - **Dragging down** (or dragging the end handle down): the next line is selected once your finger is about a line below it. So your finger stays under the selection, not on top of it.
-  - **Dragging back up** (or dragging the end handle up): as soon as your finger reaches the bottom of the line being selected, it pushes the selection up a line, so your finger stays below it.
+  - **Dragging down** (or dragging the end handle down): the next line is selected once your finger is about half a line below it. So your finger stays under the selection, not on top of it.
+  - **Dragging back up** (or dragging the end handle up): the end of the selection keeps the same distance above your finger. A line comes off as soon as your finger is back to just under it, one line of travel per line, so your finger never covers the selection. If you come all the way back to the line you started on, the end stays the same distance above your finger, so it moves to the line above your starting word.
   - **The start handle** works the same way, but with your finger above it.
   - Right after a long-press, your finger is on the line itself. To go up from there, drag about half a line past the line's top.
   - In the bottom-right and top-left corners, where KOReader lets you keep selecting onto the next or previous page, this is switched off so that still works.
@@ -76,6 +76,7 @@ This runs a scripted session and saves screenshots to `emulator/shots/`. Set `FT
 - `loupe`: the One line copy as it grows, goes away on the next line and comes back on a handle.
 - `wrap`: a long-press on a word that wraps onto the next line.
 - `lock`: small wobbles up and down, dragging down and back up, then pushing the end handle up, to show when the selection changes line.
+- `relative`: drags down five lines and back up a quarter line at a time, logging how far the finger is below the selection.
 - `probe`: logs where the selection ends as the finger crosses words, and how long a drag step and a page repaint take.
 
 Other options:

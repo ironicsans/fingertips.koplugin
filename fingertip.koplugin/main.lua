@@ -51,15 +51,14 @@ local PANEL_CHOICES = {
 local DEFAULT_PANEL = "line"
 
 -- Line lock, in line heights from the middle of the line being selected.
--- Your finger stays on its side of the end you're moving: below it when you
--- drag down or drag the end handle, above it with the start handle.
--- Pulling away from the text (down from below, up from above), the line
--- changes only once the finger is a full line past the next line's middle,
--- so it trails a line behind. Moving back towards the text, the line changes
--- as soon as the finger reaches its edge: the finger pushes it along instead
--- of sliding over it.
+-- Once you've dragged down past a line, the end of the selection keeps a
+-- steady distance above your finger, both ways: a line is added when your
+-- finger is about half a line below it (LOCK_PULL), and taken off again
+-- when your finger comes back up to about that spot (LOCK_PUSH). The small
+-- gap between the two only stops a wobble from flickering a line on and off.
+-- With the start handle it's the same, mirrored: the finger stays above.
 local LOCK_PULL = 2.0
-local LOCK_PUSH = 0.5
+local LOCK_PUSH = 0.7
 -- Right after a long-press your finger is on the line itself: going up then
 -- takes moving half a line past its top edge.
 local LOCK_UP_FROM_ON = 1.0

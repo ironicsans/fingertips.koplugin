@@ -166,6 +166,29 @@ function Demo:onReaderReady()
                 bb:free()
             end },
         }
+    elseif scenario == "relative" then
+        -- Drag down five lines, then back up, a quarter line at a time.
+        -- Logs how far the finger is below the bottom of the selection's
+        -- last line, in line heights.
+        local cy, lh
+        local function pan(dy)
+            hl:onHoldPan(nil, ges("hold_pan", W * 0.5, cy + dy * lh))
+            local lines = ft:getLineBoxes()
+            local last = lines[#lines]
+            logger.info(string.format("FtRel finger=%+.2f lines=%d finger_below_end=%+.2f",
+                dy, #lines, (cy + dy * lh - (last.y + last.h)) / lh))
+        end
+        steps = {
+            { "80-hold", function()
+                hl:onHold(nil, ges("hold", W * 0.30, hy))
+                local l = ft:getLineBoxes()[1]
+                cy, lh = l.y + l.h / 2, l.h
+            end },
+            { "81-down-and-up", function()
+                for k = 1, 24 do pan(k * 0.25) end
+                for k = 23, 0, -1 do pan(k * 0.25) end
+            end },
+        }
     elseif scenario == "lock" then
         -- Line lock: offsets are in line heights from the held line's middle.
         local cy, lh
@@ -189,8 +212,8 @@ function Demo:onReaderReady()
             { "63-down-1.8-still",    function() pan(W * 0.55, 1.8) end },
             { "64-down-2.1-next",     function() pan(W * 0.55, 2.1) end },
             { "65-down-3.1-next",     function() pan(W * 0.40, 3.1) end },
-            { "66-up-to-2.6-stays",   function() pan(W * 0.40, 2.6) end },
-            { "67-up-to-2.4-pushes",  function() pan(W * 0.40, 2.4) end },
+            { "66-up-to-2.8-stays",   function() pan(W * 0.40, 2.8) end },
+            { "67-up-to-2.6-pushes",  function() pan(W * 0.40, 2.6) end },
             { "68-released",          function() hl:onHoldRelease() end },
             { "69-end-handle-up-0.2", function() grab("stop"); knobPan("stop", -0.2) end },
             { "70-end-handle-up-0.9", function() knobPan("stop", -0.9) end },
