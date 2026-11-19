@@ -41,29 +41,30 @@ local Screen = Device.screen
 -- How far the copy is lifted, in line heights (measured top to top).
 local LIFT = 2.25
 
--- What the lifted copy shows while you drag: a small window around your
--- finger (it moves along with you, like the iOS loupe), or the whole selection.
+-- What the lifted copy shows while you drag: the line you start on (it
+-- grows as you drag along it and goes away when you reach another line), or
+-- the whole selection.
 local PANEL_CHOICES = {
-    { text = _("Around your finger"), value = "word" },
+    { text = _("One line"), value = "line" },
     { text = _("Whole selection"), value = "selection" },
 }
-local DEFAULT_PANEL = "word"
--- Width of the "Around your finger" copy, in letters, centred on the finger.
--- A letter is taken as 0.4 of the line height, about right for book fonts at
--- normal line spacing.
-local FOLLOW_LETTERS = 10
-local LETTER_PER_LINE = 0.4
--- It moves sideways in steps of about 1.5 letters: small enough to feel like
--- it follows the finger, few enough that e-ink isn't redrawing all the time.
-local FOLLOW_STEP_LETTERS = 1.5
+local DEFAULT_PANEL = "line"
 
--- Line lock: while you drag, small moves up or down keep the selection on
--- its line. Measured in line heights from the middle of that line, it moves
--- down a line once the finger is on the line after next, which keeps the
--- finger about a line below the text it's selecting; and up a line once the
--- finger is half a line past the top edge.
-local LOCK_DOWN = 2.0
-local LOCK_UP = 1.0
+-- Line lock, in line heights from the middle of the line being selected.
+-- Your finger stays on its side of the end you're moving: below it when you
+-- drag down or drag the end handle, above it with the start handle.
+-- Pulling away from the text (down from below, up from above), the line
+-- changes only once the finger is a full line past the next line's middle,
+-- so it trails a line behind. Moving back towards the text, the line changes
+-- as soon as the finger reaches its edge: the finger pushes it along instead
+-- of sliding over it.
+local LOCK_PULL = 2.0
+local LOCK_PUSH = 0.5
+-- Right after a long-press your finger is on the line itself: going up then
+-- takes moving half a line past its top edge.
+local LOCK_UP_FROM_ON = 1.0
+-- Room to wobble before a push, when you grab a handle close to its line.
+local LOCK_MARGIN = 0.3
 
 -- Outline thickness and corner radius, in KOReader's screen-scaled units
 -- (Screen:scaleBySize), so they look about the same size on any screen.
@@ -99,6 +100,7 @@ function Fingertip:init()
     self.enabled = G_reader_settings:nilOrTrue("fingertip_enabled")
     self.lift = LIFT
     self.panel_mode = G_reader_settings:readSetting("fingertip_panel_mode", DEFAULT_PANEL)
+    if self.panel_mode ~= "selection" then self.panel_mode = "line" end
     self.finger = nil -- screen point of the finger (or the dragged handle)
     self.loupe_line_y = nil -- top of the line the drag started on
     self.loupe_hidden = false -- once the drag leaves that line, until the next one
@@ -150,8 +152,8 @@ function Fingertip:wrapHighlight()
         locked.pos = pos
         local ret = orig_onHoldPan(this, arg, locked, ...)
         plugin:relock()
-        -- The loupe follows the finger sideways, and the locked line.
-        plugin.finger = { x = ges.pos.x, y = pos.y }
+        -- The panel shows the line KOReader was given.
+        plugin.finger = { x = pos.x, y = pos.y }
         plugin:update()
         return ret
     end
@@ -241,8 +243,9 @@ function Fingertip:getLineBoxes()
 end
 
 -- A new gesture (a long-press, or grabbing a handle) brings the loupe back.
-function Fingertip:startLoupe(pos)
+function Fingertip:startLoupe(pos, side)
     self.finger = pos and { x = pos.x, y = pos.y } or nil
+    self.lock_side = side or "on"
     self.loupe_line_y = nil
     self.loupe_hidden = false
     self.lock = nil
@@ -263,9 +266,9 @@ local function fingerLine(lines, finger)
     return best
 end
 
--- The "Around your finger" window: on the finger's line, centred on the
--- finger, moved in fixed steps. Nil once the drag has left the line it
--- started on (like iOS, the loupe stays away until the next gesture).
+-- The "One line" panel: the selection on the line where the drag started,
+-- growing as it grows. Nil once the drag has reached another line (like
+-- iOS, it stays away until the next gesture).
 function Fingertip:loupeLine(lines)
     if self.loupe_hidden then return nil end
     local line = fingerLine(lines, self.finger)
@@ -275,19 +278,27 @@ function Fingertip:loupeLine(lines)
         self.loupe_hidden = true
         return nil
     end
-    local letter = LETTER_PER_LINE * line.h
-    local w = math.floor(FOLLOW_LETTERS * letter + 0.5)
-    local fx = self.finger and self.finger.x or (line.x + line.w)
-    local step = math.max(1, FOLLOW_STEP_LETTERS * letter)
-    local cx = math.floor(fx / step + 0.5) * step
-    local x = math.floor(cx - w / 2 + 0.5)
-    x = math.max(0, math.min(Screen:getWidth() - w, x))
-    return Geom:new{ x = x, y = line.y, w = w, h = line.h }
+    return line
+end
+
+-- Starts the line lock on a line, with the finger touching at touch_y.
+function Fingertip:initLock(l, touch_y)
+    local cy, h = l.y + l.h / 2, l.h
+    local d0 = (touch_y - cy) / h
+    local up, down
+    if self.lock_side == "below" then
+        up, down = math.min(LOCK_PUSH, d0 - LOCK_MARGIN), LOCK_PULL
+    elseif self.lock_side == "above" then
+        up, down = -LOCK_PULL, math.max(-LOCK_PUSH, d0 + LOCK_MARGIN)
+    else
+        up, down = -LOCK_UP_FROM_ON, LOCK_PULL
+    end
+    self.lock = { cy = cy, h = h, up = up, down = down }
 end
 
 -- Where to tell KOReader the finger is during a drag: the same left-right,
 -- but on the middle of the line being selected until the finger has gone
--- far enough up or down (LOCK_UP, LOCK_DOWN) to mean another line.
+-- far enough up or down to mean another line (see LOCK_PULL, LOCK_PUSH).
 function Fingertip:lockedPoint(pos)
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     -- KOReader's corners for selecting across pages: leave those alone.
@@ -298,18 +309,22 @@ function Fingertip:lockedPoint(pos)
     if not self.lock then
         local lines = self:getLineBoxes()
         if not lines then return pos end
-        local l = fingerLine(lines, self.finger or pos)
-        self.lock = { cy = l.y + l.h / 2, h = l.h }
+        self:initLock(fingerLine(lines, self.finger or pos), pos.y)
     end
     local lk = self.lock
-    local d = pos.y - lk.cy
-    local y = lk.cy
-    if d > LOCK_DOWN * lk.h then
-        y = lk.cy + (math.floor((d - LOCK_DOWN * lk.h) / lk.h) + 1) * lk.h
+    local d = (pos.y - lk.cy) / lk.h
+    local n = 0
+    if d > lk.down then
+        n = math.ceil(d - lk.down)
+    elseif d < lk.up then
+        n = -math.ceil(lk.up - d)
+    end
+    local y = lk.cy + n * lk.h
+    if n ~= 0 then
         self.relock_y = y
-    elseif d < -LOCK_UP * lk.h then
-        y = lk.cy - (math.floor((-d - LOCK_UP * lk.h) / lk.h) + 1) * lk.h
-        self.relock_y = y
+        -- Pulled away from the text going down: from now on the finger is
+        -- below the end it's moving (the start handle keeps it above).
+        if n > 0 and self.lock_side == "on" then self.lock_side = "below" end
     end
     y = math.max(0, math.min(sh - 1, math.floor(y + 0.5)))
     return Geom:new{ x = pos.x, y = y, w = 0, h = 0 }
@@ -324,7 +339,15 @@ function Fingertip:relock()
     local lines = self:getLineBoxes()
     if not lines then return end
     local l = fingerLine(lines, { x = 0, y = y })
-    self.lock = { cy = l.y + l.h / 2, h = l.h }
+    local up, down
+    if self.lock_side == "below" then
+        up, down = LOCK_PUSH, LOCK_PULL
+    elseif self.lock_side == "above" then
+        up, down = -LOCK_PULL, -LOCK_PUSH
+    else
+        up, down = -LOCK_UP_FROM_ON, LOCK_PULL
+    end
+    self.lock = { cy = l.y + l.h / 2, h = l.h, up = up, down = down }
 end
 
 -- Recompute what to show for the current phase and selection, and ask for a
@@ -336,7 +359,7 @@ function Fingertip:update()
         if lines then
             local with_panel = self.phase == "drag" or self.phase == "handle"
             local panel_lines
-            if with_panel and self.panel_mode == "word" then
+            if with_panel and self.panel_mode == "line" then
                 local l = self:loupeLine(lines)
                 if l then panel_lines = { l } else with_panel = false end
             end
@@ -348,8 +371,6 @@ function Fingertip:update()
                 with_panel = with_panel,
                 with_handles = true,
                 panel_lines = panel_lines,
-                -- the fixed window already includes its context sideways
-                panel_ctx_side = panel_lines and 0 or nil,
             })
         end
     end
@@ -479,12 +500,12 @@ function Fingertip:handleAt(pos)
     local hd = hg[best]
     local ex = best == "start" and hd.x + 1 or hd.x - 1
     local ey = math.floor((hd.top + hd.bottom) / 2)
-    return { which = best, dx = ex - pos.x, dy = ey - pos.y }
+    return { which = best, dx = ex - pos.x, dy = ey - pos.y, touch_y = pos.y }
 end
 
 -- Dragging one handle means the other end stays put: make that end the
 -- point KOReader extends the selection from, as if the hold started there.
-function Fingertip:beginHandleDrag(which)
+function Fingertip:beginHandleDrag(which, touch_y)
     local hl = self.ui.highlight
     local lines = self:getLineBoxes()
     if not lines then return end
@@ -498,10 +519,13 @@ function Fingertip:beginHandleDrag(which)
     end
     local anchor = self.ui.view:screenToPageTransform(Geom:new{ x = math.floor(ax), y = math.floor(ay), w = 0, h = 0 })
     if anchor then hl.hold_pos = anchor end
-    -- The loupe comes back, at the end being dragged, and follows it.
+    -- The one-line panel comes back, on the line of the end being dragged,
+    -- and the finger stays on the handle's side of it.
     local l = which == "stop" and lines[#lines] or lines[1]
     local ex = which == "stop" and l.x + l.w - 1 or l.x + 1
-    self:startLoupe({ x = math.floor(ex), y = math.floor(l.y + l.h / 2) })
+    self:startLoupe({ x = math.floor(ex), y = math.floor(l.y + l.h / 2) },
+        which == "stop" and "below" or "above")
+    if touch_y then self:initLock(l, touch_y) end
     self.phase = "handle"
     self:update()
 end

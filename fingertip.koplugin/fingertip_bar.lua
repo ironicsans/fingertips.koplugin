@@ -197,12 +197,14 @@ function Bar:startDrag(grab)
     self.dragging = grab
     self.visible = false
     self:refresh(self.bar_rect)
-    self.plugin:beginHandleDrag(grab.which)
+    self.plugin:beginHandleDrag(grab.which, grab.touch_y)
 end
 
 function Bar:moveDrag(pos)
     local g = self.dragging
-    self.plugin:moveHandle(Geom:new{ x = pos.x + g.dx, y = pos.y + g.dy, w = 0, h = 0 })
+    -- Sideways, the handle keeps its offset from the finger; up and down,
+    -- the plugin's line lock works from where the finger really is.
+    self.plugin:moveHandle(Geom:new{ x = pos.x + g.dx, y = pos.y, w = 0, h = 0 })
 end
 
 function Bar:endDrag()

@@ -8,7 +8,12 @@ When you long-press and drag to select text, your fingertip covers the words you
 - Each line's copy stays where it first appears. The current line's copy grows to the right, and when the selection reaches a new line, that line's copy is added below. A multi-line selection gets one merged panel whose outline steps in and out with the lines, with every corner rounded. When two lines barely overlap side to side, for example the last word of one line and the first word of the next, they get two separate boxes.
 - Handles appear at both ends of the selection as soon as you start, and they show up in the copy too.
 - On the top line of a page, where there's no room above, the panel goes below the selection.
-- The selection sticks to its line, so you can slide left and right without slipping onto the line above or below. To move down a line, drag until your finger is about two lines below the line being selected. That way your finger stays below the selection, not on top of it. To move up a line, drag until your finger is about half a line past the line's top. The same applies when you drag a handle. In the bottom-right and top-left corners, where KOReader lets you keep selecting onto the next or previous page, this is switched off so that still works.
+- The selection sticks to its line, so you can slide left and right without slipping onto the line above or below. Your finger stays on its side of the end you're moving, and never slides on top of it:
+  - **Dragging down** (or dragging the end handle down): the next line is selected once your finger is about a line below it. So your finger stays under the selection, not on top of it.
+  - **Dragging back up** (or dragging the end handle up): as soon as your finger reaches the bottom of the line being selected, it pushes the selection up a line, so your finger stays below it.
+  - **The start handle** works the same way, but with your finger above it.
+  - Right after a long-press, your finger is on the line itself. To go up from there, drag about half a line past the line's top.
+  - In the bottom-right and top-left corners, where KOReader lets you keep selecting onto the next or previous page, this is switched off so that still works.
 
 **When you lift your finger**
 - The panel disappears. In its place, an action bar appears above the selection, leaving the same gap, so it never covers the selection or its handles. When there's no room above, it goes below.
@@ -18,7 +23,7 @@ When you long-press and drag to select text, your fingertip covers the words you
 - A single-word long-press still opens the dictionary right away, as KOReader normally does.
 
 **Adjusting the selection**
-- Drag either handle. While you drag, the bar steps aside and the lifted copy comes back. When you let go, the bar returns showing its first set.
+- Drag either handle. While you drag, the bar steps aside and the lifted copy comes back for the line of the end you grabbed. When you let go, the bar returns showing its first set.
 
 ## Install on the Kobo
 
@@ -40,7 +45,7 @@ Look under **Tools → Fingertip** in the top menu while a book is open. You'll 
   - The list is grouped the way the bar shows it: first set, second set (after More), and so on. Actions you've taken off the bar are listed last.
   - Actions marked "(only when it applies)", like Follow Link, appear on the bar only when they're relevant, for example when you've selected a link.
 - **Lifted copy**: what the copy above your finger shows while you drag.
-  - **Around your finger** (the default) works like the iOS magnifier. It shows a window about ten letters wide, centred on your finger, and slides along with you in small steps of about a letter and a half. A step is small enough to feel smooth, but the screen doesn't redraw for every tiny movement. When your drag reaches another line, the window goes away and stays away until you lift your finger. Grabbing a handle brings it back. When a word wraps onto the next line, it shows only the half under your finger.
+  - **One line** (the default): a copy of the line you start on. It grows as you drag along the line, and goes away when your drag reaches another line, until you lift your finger. Grabbing a handle brings it back for that handle's line. When a word wraps onto the next line, it shows only the half on the line you're holding.
   - **Whole selection** shows the entire selection, with each line staying where it first appeared.
 - **Outline thickness**: Thin, Medium (default), Thick or Extra thick.
 - **Corner rounding**: Square, Slight, Medium (default) or Round.
@@ -68,9 +73,10 @@ This runs a scripted session and saves screenshots to `emulator/shots/`. Set `FT
 - `split`: a selection from the end of one line to the start of the next.
 - `arrange`: the Action bar settings screen.
 - `rows2`: the two-row bar.
-- `loupe`: the Around your finger window as it slides, leaves the line and comes back on a handle.
+- `loupe`: the One line copy as it grows, goes away on the next line and comes back on a handle.
 - `wrap`: a long-press on a word that wraps onto the next line.
-- `lock`: small wobbles up and down, then dragging down and back up, to show when the selection changes line.
+- `lock`: small wobbles up and down, dragging down and back up, then pushing the end handle up, to show when the selection changes line.
+- `probe`: logs where the selection ends as the finger crosses words, and how long a drag step and a page repaint take.
 
 Other options:
 - `FT_DEMO_SHOTS=folder` saves the screenshots to a different folder.
