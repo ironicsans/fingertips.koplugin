@@ -223,7 +223,9 @@ end
 --[[
 Works out what to draw. lines: screen boxes of the selected lines, top to
 bottom. opts: lift (line heights), border and radius (screen-scaled units),
-shadow ("none", "hard", "soft"), with_panel, with_handles.
+shadow ("none", "hard", "soft"), with_panel, with_handles, and panel_lines:
+what the panel copies, when not the whole selection (e.g. just the word
+under the finger). The selected lines stay dark in the copy either way.
 Returns nil when there is nothing to draw.
 ]]
 function Panel.computeLayout(lines, opts)
@@ -239,7 +241,7 @@ function Panel.computeLayout(lines, opts)
     end
 
     if opts.with_panel then
-        local panel = Panel.computePanel(lines, opts, screen_w, screen_h)
+        local panel = Panel.computePanel(opts.panel_lines or lines, opts, screen_w, screen_h, lines)
         if panel then
             layout.panel = panel
             region = region and region:combine(panel.region) or panel.region
@@ -253,7 +255,9 @@ function Panel.computeLayout(lines, opts)
     return layout
 end
 
-function Panel.computePanel(lines, opts, screen_w, screen_h)
+-- lines: what to copy; keep_lines: the selected lines (left dark).
+function Panel.computePanel(lines, opts, screen_w, screen_h, keep_lines)
+    keep_lines = keep_lines or lines
     local border = math.max(1, Screen:scaleBySize(opts.border))
     local radius = Screen:scaleBySize(opts.radius)
     local shadow_off, shadow_blur = 0, 0
@@ -387,14 +391,14 @@ function Panel.computePanel(lines, opts, screen_w, screen_h)
         end
         parts[#parts + 1] = "|"
     end
-    for i = 1, #lines do
-        local l = lines[i]
+    for i = 1, #keep_lines do
+        local l = keep_lines[i]
         parts[#parts + 1] = string.format("%d,%d,%d,%d", l.x, l.y, l.w, l.h)
     end
 
     return {
         dy = dy,
-        lines = lines, -- the selected parts stay dark in the copy
+        lines = keep_lines, -- the selected parts stay dark in the copy
         shapes = shapes,
         region = Geom:new{ x = bx0, y = by0, w = bx1 - bx0, h = by1 - by0 },
         shadow_blur = shadow_blur,

@@ -41,6 +41,8 @@ function Demo:onReaderReady()
         G_reader_settings:delSetting(k)
     end
     if scenario == "rows2" then G_reader_settings:saveSetting("fingertip_bar_rows", 2) end
+    -- FT_DEMO_PANEL=word|selection: what the lifted copy shows (default: the setting)
+    if os.getenv("FT_DEMO_PANEL") and ft then ft.panel_mode = os.getenv("FT_DEMO_PANEL") end
     local style = os.getenv("FT_DEMO_STYLE")
     if style and ft then
         local b, r, s = style:match("^([%d%.]+),([%d%.]+),(%a+)$")
