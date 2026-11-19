@@ -23,10 +23,10 @@ Panel.CONTEXT_V = 0.5      -- half a line above and below
 -- How dark the context stays: 1 = as on the page, 0 = invisible.
 local CONTEXT_INK = 0.33
 
-local SHADOW_OFFSET = 6 -- screen-scaled units, down and right
+local SHADOW_OFFSET = 3 -- screen-scaled units, down and right
 -- How much each shadow darkens the page at its densest (0-1). The soft one
 -- is blurred, which thins it out, so it starts stronger.
-local SHADOW_STRENGTH = { hard = 0.55, soft = 0.75 }
+local SHADOW_STRENGTH = { hard = 0.41, soft = 0.56 }
 
 local ARC_STEPS = 8 -- segments per rounded corner
 

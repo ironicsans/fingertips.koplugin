@@ -153,8 +153,34 @@ function Demo:onReaderReady()
                 local boxes = doc:getScreenBoxesFromPositions(sel.pos0, xp, true)
                 local b = boxes[#boxes]
                 logger.info("FtProbe partial: end", sel.pos1, "minus 3 chars", xp, "box end", b and (b.x + b.w))
-                -- How long does a full page repaint take?
+                -- How long does the panel take to draw, for each style?
                 local Blitbuffer = require("ffi/blitbuffer")
+                local Panel = require("fingertip_panel")
+                local lines = ft:getLineBoxes()
+                local pbb = Blitbuffer.new(W, H, Screen.bb:getType())
+                for _, st in ipairs({ { 3, 9, "none" }, { 8, 9, "none" }, { 3, 0, "none" }, { 3, 14, "none" },
+                                      { 3, 9, "hard" }, { 3, 9, "soft" } }) do
+                    local layout = Panel.computeLayout(lines, { lift = 2.25, border = st[1], radius = st[2],
+                        shadow = st[3], with_panel = true, with_handles = true, panel_lines = { lines[1] } })
+                    local t0 = time.now()
+                    for _ = 1, 5 do Panel.paint(pbb, 0, 0, layout) end
+                    logger.info(string.format("FtProbe style border=%d radius=%d shadow=%s paint ms=%.1f",
+                        st[1], st[2], st[3], time.to_ms(time.now() - t0) / 5))
+                end
+                pbb:free()
+                -- A long-press, with and without the plugin.
+                local hx = math.floor(W * 0.30)
+                for _, on in ipairs({ false, true, false, true }) do
+                    hl:onClose()
+                    ft.enabled = on
+                    local t0 = time.now()
+                    hl:onHold(nil, ges("hold", hx, hy))
+                    self.ui.view:paintTo(Screen.bb, 0, 0)
+                    logger.info(string.format("FtProbe long-press plugin=%s ms=%.1f", tostring(on),
+                        time.to_ms(time.now() - t0)))
+                end
+                ft.enabled = true
+                -- How long does a full page repaint take?
                 local bb = Blitbuffer.new(W, H, Screen.bb:getType())
                 local t0 = time.now()
                 for _ = 1, 5 do self.ui.view:paintTo(bb, 0, 0) end
