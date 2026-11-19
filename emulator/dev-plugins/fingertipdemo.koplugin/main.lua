@@ -1,0 +1,176 @@
+-- Dev-only driver for testing Fingertip in the desktop emulator.
+-- With FT_DEMO=1, once a book is ready it plays a scripted scenario, saves a
+-- screenshot after each step into $FT_DEMO_SHOTS, then quits.
+-- FT_DEMO_SCENARIO: main (default), top, split, arrange, rows2.
+-- FT_DEMO_STYLE="border,radius,shadow" overrides the style settings.
+-- Not meant to be installed on a device.
+
+local Device = require("device")
+local Geom = require("ui/geometry")
+local UIManager = require("ui/uimanager")
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
+local logger = require("logger")
+
+local Screen = Device.screen
+
+local Demo = WidgetContainer:extend{
+    name = "fingertipdemo",
+    is_doc_only = true,
+}
+
+function Demo:init() end
+
+local function pt(x, y)
+    return Geom:new{ x = math.floor(x), y = math.floor(y), w = 0, h = 0 }
+end
+
+local function ges(name, x, y)
+    return { ges = name, pos = pt(x, y) }
+end
+
+function Demo:onReaderReady()
+    if os.getenv("FT_DEMO") ~= "1" then return end
+    local dir = os.getenv("FT_DEMO_SHOTS") or "/tmp"
+    local scenario = os.getenv("FT_DEMO_SCENARIO") or "main"
+    local W, H = Screen:getWidth(), Screen:getHeight()
+    local hl = self.ui.highlight
+    local ft = self.ui.fingertip
+
+    -- Start every run from the default bar arrangement.
+    for _, k in ipairs({ "fingertip_bar_order", "fingertip_bar_hidden", "fingertip_bar_rows" }) do
+        G_reader_settings:delSetting(k)
+    end
+    if scenario == "rows2" then G_reader_settings:saveSetting("fingertip_bar_rows", 2) end
+    local style = os.getenv("FT_DEMO_STYLE")
+    if style and ft then
+        local b, r, s = style:match("^([%d%.]+),([%d%.]+),(%a+)$")
+        ft.border, ft.radius, ft.shadow = tonumber(b), tonumber(r), s
+    end
+    if ft then
+        local items = {}
+        ft:addToMainMenu(items)
+        for _, item in ipairs(items.fingertip.sub_item_table) do
+            local label = item.text_func and item.text_func() or item.text
+            logger.info("FtDemo: menu", label)
+        end
+    end
+
+    local function knob(which)
+        local hd = ft.layout.handles[which]
+        return pt(hd.knob_x, hd.knob_y)
+    end
+    local drag_from
+    local function grab(which)
+        drag_from = knob(which)
+        ft.bar:onFtTouch(nil, { ges = "touch", pos = drag_from })
+    end
+    local function panBy(dx, dy)
+        ft.bar:onFtPan(nil, { ges = "pan", start_pos = drag_from, pos = pt(drag_from.x + dx, drag_from.y + dy) })
+    end
+    local function releaseAt(dx, dy)
+        ft.bar:onFtPanRelease(nil, { ges = "pan_release", pos = pt(drag_from.x + dx, drag_from.y + dy) })
+    end
+
+    local steps
+    local hy = H * 0.42
+    if scenario == "top" then
+        local Event = require("ui/event")
+        local ty = H * 0.03
+        steps = {
+            { "10-next-page",     function() self.ui:handleEvent(Event:new("GotoViewRel", 1)) end },
+            { "11-hold-top-line", function() hl:onHold(nil, ges("hold", W * 0.20, ty)) end },
+            { "12-drag-top-line", function() hl:onHoldPan(nil, ges("hold_pan", W * 0.70, ty)) end },
+            { "13-released",      function() hl:onHoldRelease() end },
+        }
+    elseif scenario == "split" then
+        steps = {
+            { "20-hold-line-end",   function() hl:onHold(nil, ges("hold", W * 0.80, hy)) end },
+            { "21-drag-next-start", function() hl:onHoldPan(nil, ges("hold_pan", W * 0.12, hy + H * 0.04)) end },
+            { "22-released",        function() hl:onHoldRelease() end },
+        }
+    elseif scenario == "arrange" then
+        local arr
+        local function tapRow(id, on_box)
+            for _, h in ipairs(arr.hit) do
+                if h.id == id then
+                    local x = on_box and h.box_x1 / 2 or W * 0.6
+                    arr:onFtArrangeTap(nil, ges("tap", x, (h.y0 + h.y1) / 2))
+                    return
+                end
+            end
+            logger.warn("FtDemo: no row", id)
+        end
+        steps = {
+            { "30-arrange-open", function()
+                ft:showArrange()
+                arr = UIManager._window_stack[#UIManager._window_stack].widget
+            end },
+            { "31-pick-dictionary", function() tapRow("06_dictionary") end },
+            { "32-moved-up-4", function() for _ = 1, 4 do arr:move(-1) end end },
+            { "33-untick-view-html", function() tapRow("09_view_html", true) end },
+            { "34-two-rows", function() arr:setRows(2) end },
+            { "35-closed-then-bar", function()
+                arr:onFtArrangeClose()
+                hl:onHold(nil, ges("hold", W * 0.30, hy))
+                hl:onHoldPan(nil, ges("hold_pan", W * 0.75, hy))
+                hl:onHoldRelease()
+            end },
+        }
+    else -- main and rows2
+        steps = {
+            { "01-hold-word",      function() hl:onHold(nil, ges("hold", W * 0.30, hy)) end },
+            { "02-drag-same-line", function() hl:onHoldPan(nil, ges("hold_pan", W * 0.75, hy)) end },
+            { "03-drag-3-lines",   function() hl:onHoldPan(nil, ges("hold_pan", W * 0.60, hy + H * 0.09)) end },
+            { "04-released-bar",   function() hl:onHoldRelease() end },
+        }
+        if scenario == "main" then
+            local more = {
+                { "05-more",           function() ft.bar:nextSet() end },
+                { "06-more-again",     function() ft.bar:nextSet() end },
+                { "07-more-wraps",     function() ft.bar:nextSet() end },
+                { "08-drag-end-handle", function() grab("stop"); panBy(-W * 0.25, -H * 0.035) end },
+                { "09-end-released",   function() releaseAt(-W * 0.25, -H * 0.035) end },
+                { "10-drag-start-handle", function() grab("start"); panBy(-W * 0.2, -H * 0.03) end },
+                { "11-start-released", function() releaseAt(-W * 0.2, -H * 0.03) end },
+                { "12-tap-elsewhere",  function() ft.bar:onFtTap(nil, ges("tap", W * 0.5, H * 0.92)) end },
+                { "13-hold-word-again", function() hl:onHold(nil, ges("hold", W * 0.55, H * 0.6)) end },
+                { "14-release-word",   function() hl:onHoldRelease() end },
+            }
+            for _, s in ipairs(more) do table.insert(steps, s) end
+        end
+    end
+
+    local i = 0
+    local function nextStep()
+        i = i + 1
+        local step = steps[i]
+        if not step then
+            logger.info("FtDemo: done")
+            UIManager:quit()
+            return
+        end
+        logger.info("FtDemo: step", step[1])
+        local ok, err = pcall(step[2])
+        if not ok then logger.err("FtDemo: step failed", step[1], err) end
+        UIManager:scheduleIn(1.0, function()
+            local path = string.format("%s/%s.png", dir, step[1])
+            Screen:shot(path)
+            logger.info("FtDemo: saved", path, "phase", ft and ft.phase, "bar", ft and ft.bar and ft.bar.set_index)
+            -- Grey Kobos (like the Clara BW) draw in 8-bit grey: repaint the
+            -- reader into an 8-bit buffer too, so that path gets looked at.
+            local Blitbuffer = require("ffi/blitbuffer")
+            local bb8 = Blitbuffer.new(W, H, Blitbuffer.TYPE_BB8)
+            local ok2, err2 = pcall(function()
+                bb8:fill(Blitbuffer.COLOR_WHITE)
+                self.ui.view:paintTo(bb8, 0, 0)
+                bb8:writePNG(string.format("%s/%s-bb8.png", dir, step[1]))
+            end)
+            if not ok2 then logger.err("FtDemo: bb8 render failed", err2) end
+            bb8:free()
+            nextStep()
+        end)
+    end
+    UIManager:scheduleIn(2.0, nextStep)
+end
+
+return Demo
