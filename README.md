@@ -8,11 +8,13 @@ When you long-press and drag to select text, your fingertip covers the words you
 - Each line's copy stays where it first appears. The current line's copy grows to the right, and when the selection reaches a new line, that line's copy is added below. A multi-line selection gets one merged panel whose outline steps in and out with the lines, with every corner rounded. When two lines barely overlap side to side, for example the last word of one line and the first word of the next, they get two separate boxes.
 - Handles appear at both ends of the selection as soon as you start, and they show up in the copy too.
 - On the top line of a page, where there's no room above, the panel goes below the selection.
-- The selection sticks to its line, so you can slide left and right without slipping onto the line above or below. Your finger stays on its side of the end you're moving, and never slides on top of it:
-  - **Dragging down** (or dragging the end handle down): the next line is selected once your finger is about half a line below it. So your finger stays under the selection, not on top of it.
-  - **Dragging back up** (or dragging the end handle up): the end of the selection keeps the same distance above your finger. A line comes off as soon as your finger is back to just under it, one line of travel per line, so your finger never covers the selection. If you come all the way back to the line you started on, the end stays the same distance above your finger, so it moves to the line above your starting word.
+- The selection sticks to its line, so you can slide left and right without slipping onto the line above or below. Up and down, the end of the selection follows your finger at a steady distance, like a bead on a string, so your finger never covers it:
+  - **Dragging down** (or dragging the end handle down): the next line is selected once your finger is a little more than half a line below it.
+  - **Dragging back up**: the end follows your finger up right away. After a quarter line of slack, every line your finger moves up takes one line off, while your finger is still about half a line below it.
+  - **Grabbing the end handle**: the end keeps the distance it had from your finger when you grabbed it, and moves one line for every line your finger moves.
   - **The start handle** works the same way, but with your finger above it.
-  - Right after a long-press, your finger is on the line itself. To go up from there, drag about half a line past the line's top.
+  - Right after a long-press, your finger is on the line itself. To go up from there, drag about half a line past the line's top. Your finger then stays on the text as the start of the selection moves up.
+  - If you drag all the way back up past where you started, the end stays the same distance above your finger, so the selection extends to the line above your starting word.
   - In the bottom-right and top-left corners, where KOReader lets you keep selecting onto the next or previous page, this is switched off so that still works.
 
 **When you lift your finger**

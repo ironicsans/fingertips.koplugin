@@ -50,20 +50,26 @@ local PANEL_CHOICES = {
 }
 local DEFAULT_PANEL = "line"
 
--- Line lock, in line heights from the middle of the line being selected.
--- Once you've dragged down past a line, the end of the selection keeps a
--- steady distance above your finger, both ways: a line is added when your
--- finger is about half a line below it (LOCK_PULL), and taken off again
--- when your finger comes back up to about that spot (LOCK_PUSH). The small
--- gap between the two only stops a wobble from flickering a line on and off.
+-- Line lock. During a drag, KOReader isn't told where the finger is, but
+-- where a pointer is that trails it, like a bead on a string. Distances are
+-- in line heights, from the pointer up to the finger:
+-- - Dragging down, the pointer stays LOCK_PULL above the finger, so a line
+--   is selected once your finger is about half a line below it.
+-- - Dragging back up, it stays LOCK_PUSH above the finger, so the line comes
+--   off again at about the same spot. The small gap between the two is the
+--   only slack: it stops a wobble from flickering a line on and off.
+-- The selection end stays on the middle of the pointer's line, so sliding
+-- left and right doesn't slip onto the next line.
 -- With the start handle it's the same, mirrored: the finger stays above.
-local LOCK_PULL = 2.0
-local LOCK_PUSH = 0.7
--- Right after a long-press your finger is on the line itself: going up then
--- takes moving half a line past its top edge.
-local LOCK_UP_FROM_ON = 1.0
--- Room to wobble before a push, when you grab a handle close to its line.
-local LOCK_MARGIN = 0.3
+local LOCK_PULL = 1.65
+local LOCK_PUSH = 1.4
+-- Right after a long-press your finger is on the line itself, and going up
+-- takes moving half a line past its top edge: the pointer is then half a
+-- line below the finger.
+local LOCK_ON_UP = -0.5
+-- When a lock starts (a long-press, or grabbing a handle), the pointer
+-- starts at least this far inside its line, so a small wobble can't move it.
+local LOCK_EDGE = 0.3
 
 -- Outline thickness and corner radius, in KOReader's screen-scaled units
 -- (Screen:scaleBySize), so they look about the same size on any screen.
@@ -280,24 +286,31 @@ function Fingertip:loupeLine(lines)
     return line
 end
 
+-- The pointer's allowed distance above the finger for each kind of drag
+-- (lowest, highest), and where it starts when a lock begins.
+local function lockWindow(side)
+    local slack = LOCK_PULL - LOCK_PUSH
+    if side == "below" then return LOCK_PUSH, LOCK_PULL, LOCK_PUSH end
+    if side == "above" then return -LOCK_PULL, -LOCK_PUSH, -LOCK_PUSH end
+    if side == "lead" then return LOCK_ON_UP, LOCK_ON_UP + slack, LOCK_ON_UP end
+    return LOCK_ON_UP, LOCK_PULL, 0 -- "on": just after a long-press
+end
+
 -- Starts the line lock on a line, with the finger touching at touch_y.
 function Fingertip:initLock(l, touch_y)
-    local cy, h = l.y + l.h / 2, l.h
-    local d0 = (touch_y - cy) / h
-    local up, down
-    if self.lock_side == "below" then
-        up, down = math.min(LOCK_PUSH, d0 - LOCK_MARGIN), LOCK_PULL
-    elseif self.lock_side == "above" then
-        up, down = -LOCK_PULL, math.max(-LOCK_PUSH, d0 + LOCK_MARGIN)
-    else
-        up, down = -LOCK_UP_FROM_ON, LOCK_PULL
-    end
-    self.lock = { cy = cy, h = h, up = up, down = down }
+    local h = l.h
+    local lo, hi, start = lockWindow(self.lock_side)
+    local m = LOCK_EDGE * h
+    local ptr = math.max(l.y + m, math.min(l.y + l.h - m, touch_y - start * h))
+    local off = (touch_y - ptr) / h
+    -- If the pointer had to start closer to the finger than usual, the
+    -- window widens to fit, and narrows back as the finger moves.
+    self.lock = { ptr = ptr, h = h, top = l.y, bottom = l.y + l.h,
+        lo = math.min(lo, off), hi = math.max(hi, off) }
 end
 
 -- Where to tell KOReader the finger is during a drag: the same left-right,
--- but on the middle of the line being selected until the finger has gone
--- far enough up or down to mean another line (see LOCK_PULL, LOCK_PUSH).
+-- and up-down the middle of the pointer's line (see LOCK_PULL, LOCK_PUSH).
 function Fingertip:lockedPoint(pos)
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     -- KOReader's corners for selecting across pages: leave those alone.
@@ -311,42 +324,45 @@ function Fingertip:lockedPoint(pos)
         self:initLock(fingerLine(lines, self.finger or pos), pos.y)
     end
     local lk = self.lock
-    local d = (pos.y - lk.cy) / lk.h
-    local n = 0
-    if d > lk.down then
-        n = math.ceil(d - lk.down)
-    elseif d < lk.up then
-        n = -math.ceil(lk.up - d)
+    -- The finger drags the pointer along once it's out of its window.
+    local off = (pos.y - lk.ptr) / lk.h
+    if off > lk.hi then
+        lk.ptr = pos.y - lk.hi * lk.h
+    elseif off < lk.lo then
+        lk.ptr = pos.y - lk.lo * lk.h
     end
-    local y = lk.cy + n * lk.h
-    if n ~= 0 then
-        self.relock_y = y
-        -- Pulled away from the text going down: from now on the finger is
-        -- below the end it's moving (the start handle keeps it above).
-        if n > 0 and self.lock_side == "on" then self.lock_side = "below" end
+    local y
+    if lk.ptr >= lk.top and lk.ptr < lk.bottom then
+        y = (lk.top + lk.bottom) / 2
+    else
+        y = lk.ptr
+        self.relock_y = lk.ptr
+        -- Leaving the long-pressed line: from now on the finger trails
+        -- below the end going down, or stays on the text going up.
+        if self.lock_side == "on" then
+            self.lock_side = lk.ptr >= lk.bottom and "below" or "lead"
+        end
     end
+    -- Narrow a widened window back as far as where the finger now is.
+    local lo, hi = lockWindow(self.lock_side)
+    off = (pos.y - lk.ptr) / lk.h
+    lk.lo = math.min(lo, math.max(lk.lo, off))
+    lk.hi = math.max(hi, math.min(lk.hi, off))
     y = math.max(0, math.min(sh - 1, math.floor(y + 0.5)))
     return Geom:new{ x = pos.x, y = y, w = 0, h = 0 }
 end
 
--- After moving to another line, lock onto that line's real position (line
--- heights are only an estimate: paragraph gaps, headings...).
+-- After the pointer reached another line, lock onto that line's real
+-- position (paragraph gaps, headings...).
 function Fingertip:relock()
     local y = self.relock_y
     if not y then return end
     self.relock_y = nil
+    local lk = self.lock
     local lines = self:getLineBoxes()
-    if not lines then return end
+    if not (lk and lines) then return end
     local l = fingerLine(lines, { x = 0, y = y })
-    local up, down
-    if self.lock_side == "below" then
-        up, down = LOCK_PUSH, LOCK_PULL
-    elseif self.lock_side == "above" then
-        up, down = -LOCK_PULL, -LOCK_PUSH
-    else
-        up, down = -LOCK_UP_FROM_ON, LOCK_PULL
-    end
-    self.lock = { cy = l.y + l.h / 2, h = l.h, up = up, down = down }
+    lk.top, lk.bottom, lk.h = l.y, l.y + l.h, l.h
 end
 
 -- Recompute what to show for the current phase and selection, and ask for a
