@@ -41,18 +41,21 @@ local Screen = Device.screen
 -- How far the copy is lifted, in line heights (measured top to top).
 local LIFT = 2.25
 
--- What the lifted copy shows while you drag: just the word under your finger
--- (it moves along with you, like the iOS loupe), or the whole selection.
+-- What the lifted copy shows while you drag: a small window around your
+-- finger (it moves along with you, like the iOS loupe), or the whole selection.
 local PANEL_CHOICES = {
     { text = _("Around your finger"), value = "word" },
     { text = _("Whole selection"), value = "selection" },
 }
 local DEFAULT_PANEL = "word"
--- Width of the "Around your finger" copy, in letters, centred on the word
--- under the finger (a long word may not fit). A letter is taken as 0.4 of
--- the line height, about right for book fonts at normal line spacing.
+-- Width of the "Around your finger" copy, in letters, centred on the finger.
+-- A letter is taken as 0.4 of the line height, about right for book fonts at
+-- normal line spacing.
 local FOLLOW_LETTERS = 10
 local LETTER_PER_LINE = 0.4
+-- It moves sideways in steps of about 1.5 letters: small enough to feel like
+-- it follows the finger, few enough that e-ink isn't redrawing all the time.
+local FOLLOW_STEP_LETTERS = 1.5
 
 -- Outline thickness and corner radius, in KOReader's screen-scaled units
 -- (Screen:scaleBySize), so they look about the same size on any screen.
@@ -88,8 +91,9 @@ function Fingertip:init()
     self.enabled = G_reader_settings:nilOrTrue("fingertip_enabled")
     self.lift = LIFT
     self.panel_mode = G_reader_settings:readSetting("fingertip_panel_mode", DEFAULT_PANEL)
-    self.finger_pos = nil -- page position of the finger (or dragged handle)
-    self.finger_word = nil -- screen box of the last word found there
+    self.finger = nil -- screen point of the finger (or the dragged handle)
+    self.loupe_line_y = nil -- top of the line the drag started on
+    self.loupe_hidden = false -- once the drag leaves that line, until the next one
     self.border = G_reader_settings:readSetting("fingertip_border", DEFAULT_BORDER)
     self.radius = G_reader_settings:readSetting("fingertip_radius", DEFAULT_RADIUS)
     self.shadow = G_reader_settings:readSetting("fingertip_shadow", DEFAULT_SHADOW)
@@ -116,16 +120,11 @@ function Fingertip:wrapHighlight()
     -- Wrapping the instance (not the class) keeps this local to the open
     -- book, and the touch zones call hl:onHold() etc., so they reach us.
     local orig_onHold = hl.onHold
-    hl.onHold = function(this, ...)
-        local ret = orig_onHold(this, ...)
-        plugin.finger_word = nil
-        plugin.finger_pos = nil
-        plugin.finger_key = nil
-        plugin.panned = false
+    hl.onHold = function(this, arg, ges, ...)
+        local ret = orig_onHold(this, arg, ges, ...)
+        plugin:startLoupe(ges and ges.pos)
         if this.hold_pos and this.selected_text then
             plugin.phase = "drag"
-            local p = this.hold_pos
-            plugin.finger_pos = { x = p.x, y = p.y, page = p.page }
         end
         plugin:update()
         return ret
@@ -134,8 +133,7 @@ function Fingertip:wrapHighlight()
     local orig_onHoldPan = hl.onHoldPan
     hl.onHoldPan = function(this, arg, ges, ...)
         local ret = orig_onHoldPan(this, arg, ges, ...)
-        if this.holdpan_pos then plugin.panned = true end
-        if ges and ges.pos then plugin:setFingerScreenPos(ges.pos.x, ges.pos.y) end
+        if ges and ges.pos then plugin.finger = { x = ges.pos.x, y = ges.pos.y } end
         plugin:update()
         return ret
     end
@@ -184,11 +182,20 @@ function Fingertip:getLineBoxes()
     if not (hl.hold_pos and sel and sel.sboxes and #sel.sboxes > 0) then
         return nil
     end
+    local sboxes = sel.sboxes
+    -- A long-pressed word comes with a single box, which for a word that
+    -- wraps (Some-|where) covers both lines and the space between: ask
+    -- crengine for that word's boxes line by line instead.
+    if #sboxes == 1 and self.ui.rolling and type(sel.pos0) == "string" and type(sel.pos1) == "string" then
+        local doc = self.ui.document
+        local ok, per_line = pcall(doc.getScreenBoxesFromPositions, doc, sel.pos0, sel.pos1, true)
+        if ok and per_line and #per_line > 0 then sboxes = per_line end
+    end
     local boxes = {}
-    for i = 1, #sel.sboxes do
+    for i = 1, #sboxes do
         -- sboxes are already screen boxes with crengine (EPUB...), and page
         -- boxes with PDF/DjVu; this converts the latter and passes the former.
-        local r = self.ui.view:pageToScreenTransform(hl.hold_pos.page, sel.sboxes[i])
+        local r = self.ui.view:pageToScreenTransform(hl.hold_pos.page, sboxes[i])
         if r and r.w > 0 and r.h > 0 then
             table.insert(boxes, Geom:new{ x = r.x, y = r.y, w = r.w, h = r.h })
         end
@@ -215,45 +222,47 @@ function Fingertip:getLineBoxes()
     return lines
 end
 
-function Fingertip:setFingerScreenPos(x, y)
-    local p = self.ui.view:screenToPageTransform(Geom:new{ x = x, y = y, w = 0, h = 0 })
-    if p then self.finger_pos = { x = p.x, y = p.y, page = p.page } end
+-- A new gesture (a long-press, or grabbing a handle) brings the loupe back.
+function Fingertip:startLoupe(pos)
+    self.finger = pos and { x = pos.x, y = pos.y } or nil
+    self.loupe_line_y = nil
+    self.loupe_hidden = false
 end
 
--- Screen box of the word under the finger. Between words (or past the end
--- of a line) there's none: keep the last one, so the copy doesn't flicker.
-function Fingertip:getFingerWordBox()
-    local pos = self.finger_pos
-    local key = pos and string.format("%s,%s,%s", pos.x, pos.y, tostring(pos.page))
-    if pos and key ~= self.finger_key then
-        self.finger_key = key
-        local doc = self.ui.document
-        local ok, word = pcall(doc.getWordFromPosition, doc, { x = pos.x, y = pos.y, page = pos.page }, true)
-        -- With crengine, looking a word up changes the reader's selection
-        -- (it clears it, or selects that word): put it back as it was.
-        if self.ui.rolling then self:restoreSelection() end
-        local box = ok and word and (word.sbox or word.pbox)
-        if box then
-            local r = self.ui.view:pageToScreenTransform(pos.page, box)
-            if r and r.w > 0 and r.h > 0 then
-                self.finger_word = Geom:new{ x = r.x, y = r.y, w = r.w, h = r.h }
-            end
-        end
+-- The selection's line under the finger, or the nearest one. Using the line
+-- (not crengine's word box) keeps a word that wraps onto the next line from
+-- stretching the loupe over both lines.
+local function fingerLine(lines, finger)
+    if not finger then return lines[#lines] end
+    local best, best_d
+    for _, l in ipairs(lines) do
+        if finger.y >= l.y and finger.y < l.y + l.h then return l end
+        local d = math.abs(finger.y - (l.y + l.h / 2))
+        if not best_d or d < best_d then best, best_d = l, d end
     end
-    return self.finger_word
+    return best
 end
 
--- Redo the selection the way ReaderHighlight made it: from the hold point to
--- the last drag point, or just the held word if there was no drag yet.
-function Fingertip:restoreSelection()
-    local hl = self.ui.highlight
-    local doc = self.ui.document
-    if not hl.hold_pos then return end
-    if self.panned and hl.holdpan_pos then
-        pcall(doc.getTextFromPositions, doc, hl.hold_pos, hl.holdpan_pos)
-    else
-        pcall(doc.getWordFromPosition, doc, hl.hold_pos)
+-- The "Around your finger" window: on the finger's line, centred on the
+-- finger, moved in fixed steps. Nil once the drag has left the line it
+-- started on (like iOS, the loupe stays away until the next gesture).
+function Fingertip:loupeLine(lines)
+    if self.loupe_hidden then return nil end
+    local line = fingerLine(lines, self.finger)
+    if not self.loupe_line_y then
+        self.loupe_line_y = line.y
+    elseif math.abs(line.y - self.loupe_line_y) > line.h / 2 then
+        self.loupe_hidden = true
+        return nil
     end
+    local letter = LETTER_PER_LINE * line.h
+    local w = math.floor(FOLLOW_LETTERS * letter + 0.5)
+    local fx = self.finger and self.finger.x or (line.x + line.w)
+    local step = math.max(1, FOLLOW_STEP_LETTERS * letter)
+    local cx = math.floor(fx / step + 0.5) * step
+    local x = math.floor(cx - w / 2 + 0.5)
+    x = math.max(0, math.min(Screen:getWidth() - w, x))
+    return Geom:new{ x = x, y = line.y, w = w, h = line.h }
 end
 
 -- Recompute what to show for the current phase and selection, and ask for a
@@ -266,11 +275,8 @@ function Fingertip:update()
             local with_panel = self.phase == "drag" or self.phase == "handle"
             local panel_lines
             if with_panel and self.panel_mode == "word" then
-                local wb = self:getFingerWordBox() or lines[#lines]
-                local w = math.floor(FOLLOW_LETTERS * LETTER_PER_LINE * wb.h + 0.5)
-                local x = math.floor(wb.x + wb.w / 2 - w / 2 + 0.5)
-                x = math.max(0, math.min(Screen:getWidth() - w, x))
-                panel_lines = { Geom:new{ x = x, y = wb.y, w = w, h = wb.h } }
+                local l = self:loupeLine(lines)
+                if l then panel_lines = { l } else with_panel = false end
             end
             layout = Panel.computeLayout(lines, {
                 lift = self.lift,
@@ -430,18 +436,10 @@ function Fingertip:beginHandleDrag(which)
     end
     local anchor = self.ui.view:screenToPageTransform(Geom:new{ x = math.floor(ax), y = math.floor(ay), w = 0, h = 0 })
     if anchor then hl.hold_pos = anchor end
-    -- The copy follows the end being dragged.
+    -- The loupe comes back, at the end being dragged, and follows it.
     local l = which == "stop" and lines[#lines] or lines[1]
     local ex = which == "stop" and l.x + l.w - 1 or l.x + 1
-    self.finger_word = nil
-    self:setFingerScreenPos(math.floor(ex), math.floor(l.y + l.h / 2))
-    -- ...and so does the selection's moving end, until the first move.
-    local p = self.finger_pos
-    if p then
-        hl.holdpan_pos = Geom:new{ x = p.x, y = p.y, w = 0, h = 0 }
-        hl.holdpan_pos.page = p.page
-        self.panned = true
-    end
+    self:startLoupe({ x = math.floor(ex), y = math.floor(l.y + l.h / 2) })
     self.phase = "handle"
     self:update()
 end

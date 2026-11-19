@@ -1,7 +1,7 @@
 -- Dev-only driver for testing Fingertip in the desktop emulator.
 -- With FT_DEMO=1, once a book is ready it plays a scripted scenario, saves a
 -- screenshot after each step into $FT_DEMO_SHOTS, then quits.
--- FT_DEMO_SCENARIO: main (default), top, split, arrange, rows2.
+-- FT_DEMO_SCENARIO: main (default), top, split, arrange, rows2, loupe, wrap.
 -- FT_DEMO_STYLE="border,radius,shadow" overrides the style settings.
 -- Not meant to be installed on a device.
 
@@ -117,6 +117,25 @@ function Demo:onReaderReady()
                 hl:onHoldPan(nil, ges("hold_pan", W * 0.75, hy))
                 hl:onHoldRelease()
             end },
+        }
+    elseif scenario == "wrap" then
+        steps = {
+            { "50-hold-hyphenated", function() hl:onHold(nil, ges("hold", W * 0.93, hy)) end },
+            { "51-hold-its-second-half", function()
+                hl:onClose(); hl:onHold(nil, ges("hold", W * 0.06, hy + H * 0.04)) end },
+        }
+    elseif scenario == "loupe" then
+        local function pan(x, y) hl:onHoldPan(nil, ges("hold_pan", x, y)) end
+        steps = {
+            { "40-hold",           function() hl:onHold(nil, ges("hold", W * 0.30, hy)) end },
+            { "41-pan-right",      function() pan(W * 0.45, hy) end },
+            { "42-pan-a-little",   function() pan(W * 0.45 + 4, hy) end },
+            { "43-pan-further",    function() pan(W * 0.65, hy) end },
+            { "44-next-line",      function() pan(W * 0.40, hy + H * 0.04) end },
+            { "45-back-up",        function() pan(W * 0.70, hy) end },
+            { "46-released",       function() hl:onHoldRelease() end },
+            { "47-grab-end",       function() grab("stop"); panBy(-W * 0.12, 0) end },
+            { "48-end-released",   function() releaseAt(-W * 0.12, 0) end },
         }
     else -- main and rows2
         steps = {

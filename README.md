@@ -38,7 +38,9 @@ Look under **Tools → Fingertip** in the top menu while a book is open. You'll 
   - Tap an action's box to put it on the bar or take it off.
   - The list is grouped the way the bar shows it: first set, second set (after More), and so on. Actions you've taken off the bar are listed last.
   - Actions marked "(only when it applies)", like Follow Link, appear on the bar only when they're relevant, for example when you've selected a link.
-- **Lifted copy**: what the copy above your finger shows while you drag. **Around your finger** (the default) shows a window about ten letters wide, centred on the word under your finger (a long word may not fit), and it moves along with you as you drag, like the iOS magnifier. **Whole selection** shows the entire selection, with each line staying where it first appeared.
+- **Lifted copy**: what the copy above your finger shows while you drag.
+  - **Around your finger** (the default) works like the iOS magnifier. It shows a window about ten letters wide, centred on your finger, and slides along with you in small steps of about a letter and a half. A step is small enough to feel smooth, but the screen doesn't redraw for every tiny movement. When your drag reaches another line, the window goes away and stays away until you lift your finger. Grabbing a handle brings it back. When a word wraps onto the next line, it shows only the half under your finger.
+  - **Whole selection** shows the entire selection, with each line staying where it first appeared.
 - **Outline thickness**: Thin, Medium (default), Thick or Extra thick.
 - **Corner rounding**: Square, Slight, Medium (default) or Round.
 - **Drop shadow**: None (default), Hard or Soft.
@@ -65,6 +67,8 @@ This runs a scripted session and saves screenshots to `emulator/shots/`. Set `FT
 - `split`: a selection from the end of one line to the start of the next.
 - `arrange`: the Action bar settings screen.
 - `rows2`: the two-row bar.
+- `loupe`: the Around your finger window as it slides, leaves the line and comes back on a handle.
+- `wrap`: a long-press on a word that wraps onto the next line.
 
 Other options:
 - `FT_DEMO_SHOTS=folder` saves the screenshots to a different folder.
