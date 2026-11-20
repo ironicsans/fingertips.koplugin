@@ -55,7 +55,6 @@ Top menu → Tools tab (wrench icon) → FingerTips:
   - Tap an action to pick it, then use **Move up** and **Move down**. Tap its box to put it in the popup or take it out.
   - The list is grouped the way the popup shows it: first set, second set, and so on. Actions you've taken off are listed last.
   - Actions marked "(only when it applies)", like Follow Link, only appear when they're relevant, for example when you've selected a link.
-- **Outline thickness** and **Corner rounding**: how the copy above your finger looks.
 
 <!-- Photo goes here: the Customize popup screen. -->
 

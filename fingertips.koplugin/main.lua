@@ -62,23 +62,11 @@ local LOCK_ON_UP = -0.5
 -- starts at least this far inside its line, so a small wobble can't move it.
 local LOCK_EDGE = 0.3
 
--- Outline thickness and corner radius, in KOReader's screen-scaled units
--- (Screen:scaleBySize), so they look about the same size on any screen.
-local BORDER_CHOICES = {
-    { text = _("Thin"), value = 2 },
-    { text = _("Medium"), value = 3 },
-    { text = _("Thick"), value = 5 },
-    { text = _("Extra thick"), value = 7 },
-}
-local DEFAULT_BORDER = 3
-
-local RADIUS_CHOICES = {
-    { text = _("Square"), value = 0 },
-    { text = _("Slight"), value = 5 },
-    { text = _("Medium"), value = 9 },
-    { text = _("Round"), value = 14 },
-}
-local DEFAULT_RADIUS = 9
+-- Outline thickness and corner radius of the copy, in KOReader's
+-- screen-scaled units (Screen:scaleBySize), so they look about the same
+-- size on any screen.
+local BORDER = 3
+local RADIUS = 9
 
 
 local FingerTips = WidgetContainer:extend{
@@ -92,8 +80,8 @@ function FingerTips:init()
     self.finger = nil -- screen point of the finger (or the dragged handle)
     self.loupe_line_y = nil -- top of the line the drag started on
     self.loupe_hidden = false -- once the drag leaves that line, until the next one
-    self.border = G_reader_settings:readSetting("fingertips_border", DEFAULT_BORDER)
-    self.radius = G_reader_settings:readSetting("fingertips_radius", DEFAULT_RADIUS)
+    self.border = BORDER
+    self.radius = RADIUS
     -- nil: nothing shown; "drag": selecting (panel + handles);
     -- "bar": action bar shown (handles); "handle": dragging a handle (panel + handles)
     self.phase = nil
@@ -540,42 +528,6 @@ end
 -- Menu
 ---------------------------------------------------------------------------
 
--- A "Name: current value" menu entry opening a list of choices.
--- field: the property on self; setting: the G_reader_settings key.
-function FingerTips:choiceMenu(title, choices, field, setting)
-    local function same(a, b)
-        if type(a) == "number" and type(b) == "number" then
-            return math.abs(a - b) < 0.01
-        end
-        return a == b
-    end
-    local items = {}
-    for i = 1, #choices do
-        local choice = choices[i]
-        items[i] = {
-            text = choice.text,
-            radio = true,
-            checked_func = function() return same(self[field], choice.value) end,
-            callback = function()
-                self[field] = choice.value
-                G_reader_settings:saveSetting(setting, choice.value)
-            end,
-        }
-    end
-    return {
-        text_func = function()
-            for i = 1, #choices do
-                if same(self[field], choices[i].value) then
-                    return title .. ": " .. choices[i].text
-                end
-            end
-            return title
-        end,
-        enabled_func = function() return self.enabled end,
-        sub_item_table = items,
-    }
-end
-
 function FingerTips:showArrange()
     -- Opened from the menu, which stays open underneath: refresh the whole
     -- screen, or e-ink only redraws the menu row that was tapped.
@@ -607,10 +559,7 @@ function FingerTips:addToMainMenu(menu_items)
                 enabled_func = function() return self.enabled end,
                 keep_menu_open = true,
                 callback = function() self:showArrange() end,
-                separator = true,
             },
-            self:choiceMenu(_("Outline thickness"), BORDER_CHOICES, "border", "fingertips_border"),
-            self:choiceMenu(_("Corner rounding"), RADIUS_CHOICES, "radius", "fingertips_radius"),
         },
     }
 end
