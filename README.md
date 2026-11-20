@@ -8,7 +8,11 @@ A KOReader plugin that makes selecting text work more like it does on a phone. W
 - Going down a page, the end of the selection **stays just above your finger**, both on the way down and on the way back up, so your finger never covers it.
 - KOReader's highlight popup is replaced by a **compact popup** that sits above the selection instead of on top of it, with the actions you choose.
 
-<!-- Photos go here: dragging along a line with the copy above, and the popup after lifting. -->
+| Without FingerTips | With FingerTips |
+|:---:|:---:|
+| ![Without FingerTips: a finger drags across a passage and hides the words being selected, then KOReader's popup appears on top of the highlight](images/without_fingertips.gif) | ![With FingerTips: the same passage, with a copy of the line showing above the finger while it drags, and a compact popup above the highlight after lifting](images/with_fingertips.gif) |
+
+Without FingerTips, your finger hides what you're selecting, and then the popup covers your highlight. With FingerTips, you can see what you're selecting as you drag, and the popup stays clear of it.
 
 ## Tested on
 
@@ -56,7 +60,7 @@ Top menu → Tools tab (wrench icon) → FingerTips:
   - The list is grouped the way the popup shows it: first set, second set, and so on. Actions you've taken off are listed last.
   - Actions marked "(only when it applies)", like Follow Link, only appear when they're relevant, for example when you've selected a link.
 
-<!-- Photo goes here: the Customize popup screen. -->
+![The Customize popup screen: switching from two rows per set to one, then moving an action up](images/settings.gif)
 
 ## Where it works
 
