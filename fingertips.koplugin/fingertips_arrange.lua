@@ -1,5 +1,5 @@
 --[[
-Fingertip: the "Action bar" settings screen.
+FingerTips: the "Action bar" settings screen.
 
 Lists every action of KOReader's highlight popup, grouped the way the bar
 will show them (first set, then what More brings up, ...), followed by the
@@ -28,7 +28,7 @@ local TitleBar = require("ui/widget/titlebar")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 local VerticalSpan = require("ui/widget/verticalspan")
-local Actions = require("fingertip_actions")
+local Actions = require("fingertips_actions")
 local _ = require("gettext")
 local T = require("ffi/util").template
 
@@ -75,7 +75,7 @@ function Arrange:entries()
             local k = math.floor((i - 1) / per) + 1
             local name
             if not need_more then
-                name = _("On the bar")
+                name = _("In the popup")
             else
                 name = SET_NAMES[k] or T(_("Set %1"), k)
                 if k > 1 then name = T(_("%1, after More"), name) end
@@ -85,7 +85,7 @@ function Arrange:entries()
         table.insert(list, { id = id, checked = true })
     end
     if #self.hidden > 0 then
-        table.insert(list, { heading = _("Not on the bar") })
+        table.insert(list, { heading = _("Not in the popup") })
         for _, id in ipairs(self.hidden) do
             table.insert(list, { id = id, checked = false })
         end
@@ -101,7 +101,7 @@ function Arrange:build()
     local title = TitleBar:new{
         width = sw,
         fullscreen = true,
-        title = _("Action bar"),
+        title = _("Customize popup"),
         with_bottom_line = true,
         close_callback = function() self:onFtArrangeClose() end,
         show_parent = self,
@@ -121,7 +121,7 @@ function Arrange:build()
         show_parent = self,
     }
     local hint = TextBoxWidget:new{
-        text = _("Tap an action to pick it, then move it. Tap its box to put it on the bar or take it off."),
+        text = _("Tap an action to pick it, then move it. Tap its box to put it in the popup or take it out."),
         face = Font:getFace("cfont", 16),
         width = sw - 2 * pad,
         fgcolor = Blitbuffer.COLOR_DARK_GRAY,

@@ -1,5 +1,5 @@
 --[[
-Fingertip: the action bar shown after you lift your finger.
+FingerTips: the action bar shown after you lift your finger.
 
 It sits above the selection (below it when there's no room), never over it.
 It shows one set of actions at a time; More swaps in the next set, and from
@@ -19,13 +19,13 @@ local Geom = require("ui/geometry")
 local GestureRange = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local UIManager = require("ui/uimanager")
-local Actions = require("fingertip_actions")
+local Actions = require("fingertips_actions")
 local _ = require("gettext")
 
 local Screen = Device.screen
 
 local Bar = InputContainer:extend{
-    plugin = nil,   -- the Fingertip plugin
+    plugin = nil,   -- the FingerTips plugin
     hl = nil,       -- the reader's ReaderHighlight
     actions = nil,  -- from Actions.forBar()
     rows = 1,

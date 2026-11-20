@@ -1,8 +1,8 @@
 --[[
-Fingertip: the actions offered in the action bar.
+FingerTips: the actions offered in the action bar.
 
 They are exactly the buttons of KOReader's own highlight popup, including the
-ones other plugins add to it. Fingertip only stores which of them are on the
+ones other plugins add to it. FingerTips only stores which of them are on the
 bar and in what order (by the popup's own button ids, e.g. "03_copy").
 ]]
 
@@ -12,16 +12,16 @@ local _ = require("gettext")
 
 local Actions = {}
 
-local ORDER_KEY = "fingertip_bar_order"
-local HIDDEN_KEY = "fingertip_bar_hidden"
-local ROWS_KEY = "fingertip_bar_rows"
+local ORDER_KEY = "fingertips_bar_order"
+local HIDDEN_KEY = "fingertips_bar_hidden"
+local ROWS_KEY = "fingertips_bar_rows"
 
 local function makeButton(hl, id)
     local fn = hl._highlight_buttons and hl._highlight_buttons[id]
     if type(fn) ~= "function" then return nil end
     local ok, button = pcall(fn, hl, nil)
     if ok and type(button) == "table" then return button end
-    if not ok then logger.warn("Fingertip: popup button", id, "failed:", button) end
+    if not ok then logger.warn("FingerTips: popup button", id, "failed:", button) end
 end
 
 local function labelOf(button, id)
@@ -52,7 +52,7 @@ function Actions.all(hl)
 end
 
 -- The saved arrangement applied to what exists now: shown ids in bar order,
--- and hidden ids. Buttons Fingertip hasn't seen before go at the end of the
+-- and hidden ids. Buttons FingerTips hasn't seen before go at the end of the
 -- shown ones, where they can be moved or unticked.
 function Actions.arrangement(hl)
     local all = Actions.all(hl)

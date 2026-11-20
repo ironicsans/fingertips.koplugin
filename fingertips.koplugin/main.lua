@@ -1,8 +1,8 @@
 --[[
-Fingertip
+FingerTips
 
 While you hold and drag to select text, your fingertip covers the words you
-are selecting. Fingertip:
+are selecting. FingerTips:
 
   * draws a copy of the selection a little above it (a 1:1 copy of the page,
     not magnified), with a sliver of lighter context around it, in one panel
@@ -20,7 +20,7 @@ How it hooks in:
     highlights on every repaint.
   * State: thin wrappers around this reader's ReaderHighlight instance
     (onHold, onHoldPan, onHoldRelease, clear, onShowHighlightMenu). The
-    originals still do all the selecting; Fingertip only draws, and shows
+    originals still do all the selecting; FingerTips only draws, and shows
     its bar where KOReader would show its popup.
 ]]
 
@@ -31,10 +31,10 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local logger = require("logger")
 local _ = require("gettext")
 
-local Actions = require("fingertip_actions")
-local Arrange = require("fingertip_arrange")
-local Bar = require("fingertip_bar")
-local Panel = require("fingertip_panel")
+local Actions = require("fingertips_actions")
+local Arrange = require("fingertips_arrange")
+local Bar = require("fingertips_bar")
+local Panel = require("fingertips_panel")
 
 local Screen = Device.screen
 
@@ -80,27 +80,20 @@ local RADIUS_CHOICES = {
 }
 local DEFAULT_RADIUS = 9
 
-local SHADOW_CHOICES = {
-    { text = _("None"), value = "none" },
-    { text = _("Hard"), value = "hard" },
-    { text = _("Soft"), value = "soft" },
-}
-local DEFAULT_SHADOW = "none"
 
-local Fingertip = WidgetContainer:extend{
-    name = "fingertip",
+local FingerTips = WidgetContainer:extend{
+    name = "fingertips",
     is_doc_only = true,
 }
 
-function Fingertip:init()
-    self.enabled = G_reader_settings:nilOrTrue("fingertip_enabled")
+function FingerTips:init()
+    self.enabled = G_reader_settings:nilOrTrue("fingertips_enabled")
     self.lift = LIFT
     self.finger = nil -- screen point of the finger (or the dragged handle)
     self.loupe_line_y = nil -- top of the line the drag started on
     self.loupe_hidden = false -- once the drag leaves that line, until the next one
-    self.border = G_reader_settings:readSetting("fingertip_border", DEFAULT_BORDER)
-    self.radius = G_reader_settings:readSetting("fingertip_radius", DEFAULT_RADIUS)
-    self.shadow = G_reader_settings:readSetting("fingertip_shadow", DEFAULT_SHADOW)
+    self.border = G_reader_settings:readSetting("fingertips_border", DEFAULT_BORDER)
+    self.radius = G_reader_settings:readSetting("fingertips_radius", DEFAULT_RADIUS)
     -- nil: nothing shown; "drag": selecting (panel + handles);
     -- "bar": action bar shown (handles); "handle": dragging a handle (panel + handles)
     self.phase = nil
@@ -110,15 +103,15 @@ function Fingertip:init()
     self.ui.menu:registerToMainMenu(self)
 end
 
-function Fingertip:onReaderReady()
-    self.ui.view:registerViewModule("fingertip", self)
+function FingerTips:onReaderReady()
+    self.ui.view:registerViewModule("fingertips", self)
     self:wrapHighlight()
 end
 
-function Fingertip:wrapHighlight()
+function FingerTips:wrapHighlight()
     local hl = self.ui.highlight
-    if not hl or hl._fingertip_wrapped then return end
-    hl._fingertip_wrapped = true
+    if not hl or hl._fingertips_wrapped then return end
+    hl._fingertips_wrapped = true
     local plugin = self
 
     -- Wrapping the instance (not the class) keeps this local to the open
@@ -179,7 +172,7 @@ function Fingertip:wrapHighlight()
             local ok, shown = pcall(plugin.showBar, plugin)
             if ok and shown then return true end
             if not ok then
-                logger.warn("Fingertip: could not show the action bar:", shown)
+                logger.warn("FingerTips: could not show the action bar:", shown)
                 plugin:closeBar()
                 plugin.phase = nil
                 plugin:update()
@@ -190,7 +183,7 @@ function Fingertip:wrapHighlight()
 end
 
 -- Screen rectangles of the current selection, one per line, top to bottom.
-function Fingertip:getLineBoxes()
+function FingerTips:getLineBoxes()
     local hl = self.ui.highlight
     local sel = hl.selected_text
     if not (hl.hold_pos and sel and sel.sboxes and #sel.sboxes > 0) then
@@ -237,7 +230,7 @@ function Fingertip:getLineBoxes()
 end
 
 -- A new gesture (a long-press, or grabbing a handle) brings the loupe back.
-function Fingertip:startLoupe(pos, side)
+function FingerTips:startLoupe(pos, side)
     self.finger = pos and { x = pos.x, y = pos.y } or nil
     self.lock_side = side or "on"
     self.loupe_line_y = nil
@@ -263,7 +256,7 @@ end
 -- The "One line" panel: the selection on the line where the drag started,
 -- growing as it grows. Nil once the drag has reached another line (like
 -- iOS, it stays away until the next gesture).
-function Fingertip:loupeLine(lines)
+function FingerTips:loupeLine(lines)
     if self.loupe_hidden then return nil end
     local line = fingerLine(lines, self.finger)
     if not self.loupe_line_y then
@@ -286,7 +279,7 @@ local function lockWindow(side)
 end
 
 -- Starts the line lock on a line, with the finger touching at touch_y.
-function Fingertip:initLock(l, touch_y)
+function FingerTips:initLock(l, touch_y)
     local h = l.h
     local lo, hi, start = lockWindow(self.lock_side)
     local m = LOCK_EDGE * h
@@ -300,7 +293,7 @@ end
 
 -- Where to tell KOReader the finger is during a drag: the same left-right,
 -- and up-down the middle of the pointer's line (see LOCK_PULL, LOCK_PUSH).
-function Fingertip:lockedPoint(pos)
+function FingerTips:lockedPoint(pos)
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     -- KOReader's corners for selecting across pages: leave those alone.
     if (pos.y < sh / 8 or pos.y > sh * 7 / 8) and (pos.x < sw / 8 or pos.x > sw * 7 / 8) then
@@ -343,7 +336,7 @@ end
 
 -- After the pointer reached another line, lock onto that line's real
 -- position (paragraph gaps, headings...).
-function Fingertip:relock()
+function FingerTips:relock()
     local y = self.relock_y
     if not y then return end
     self.relock_y = nil
@@ -356,7 +349,7 @@ end
 
 -- Recompute what to show for the current phase and selection, and ask for a
 -- refresh of the affected area only if something actually changed.
-function Fingertip:update()
+function FingerTips:update()
     local layout
     if self.enabled and self.phase then
         local lines = self:getLineBoxes()
@@ -369,7 +362,6 @@ function Fingertip:update()
                 lift = self.lift,
                 border = self.border,
                 radius = self.radius,
-                shadow = self.shadow,
                 with_handles = true,
                 panel_line = panel_line,
             })
@@ -386,17 +378,17 @@ function Fingertip:update()
 end
 
 -- Called by ReaderView after it has drawn the page and the highlights.
-function Fingertip:paintTo(bb, x, y)
+function FingerTips:paintTo(bb, x, y)
     if not self.layout then return end
     local ok, err = pcall(Panel.paint, bb, x, y, self.layout)
-    if not ok then logger.warn("Fingertip: paint failed:", err) end
+    if not ok then logger.warn("FingerTips: paint failed:", err) end
 end
 
 ---------------------------------------------------------------------------
 -- Action bar
 ---------------------------------------------------------------------------
 
-function Fingertip:showBar()
+function FingerTips:showBar()
     local hl = self.ui.highlight
     if not self:getLineBoxes() then return false end
     local actions = Actions.forBar(hl)
@@ -418,13 +410,13 @@ function Fingertip:showBar()
     return true
 end
 
-function Fingertip:closeBar()
+function FingerTips:closeBar()
     if self.bar then
         UIManager:close(self.bar) -- onBarClosed() does the rest
     end
 end
 
-function Fingertip:onBarClosed(bar)
+function FingerTips:onBarClosed(bar)
     if self.bar ~= bar then return end
     self.bar = nil
     local hl = self.ui.highlight
@@ -437,7 +429,7 @@ end
 
 -- Where the bar goes: above the selection, as far from it as the panel is;
 -- below it if there's no room above; centred over it, kept on screen.
-function Fingertip:barPosition(w, h)
+function FingerTips:barPosition(w, h)
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     local margin = Screen:scaleBySize(6)
     local lines = self:getLineBoxes()
@@ -477,7 +469,7 @@ end
 
 -- The handle under pos, if any: { which = "start"|"stop", dx, dy }, where
 -- (dx, dy) leads from pos to the selection edge that handle marks.
-function Fingertip:handleAt(pos)
+function FingerTips:handleAt(pos)
     local layout = self.layout
     if not (layout and layout.handles and pos) then return nil end
     local hg = layout.handles
@@ -506,7 +498,7 @@ end
 
 -- Dragging one handle means the other end stays put: make that end the
 -- point KOReader extends the selection from, as if the hold started there.
-function Fingertip:beginHandleDrag(which, touch_y)
+function FingerTips:beginHandleDrag(which, touch_y)
     local hl = self.ui.highlight
     local lines = self:getLineBoxes()
     if not lines then return end
@@ -531,11 +523,11 @@ function Fingertip:beginHandleDrag(which, touch_y)
     self:update()
 end
 
-function Fingertip:moveHandle(pos)
+function FingerTips:moveHandle(pos)
     self.ui.highlight:onHoldPan(nil, { ges = "hold_pan", pos = pos })
 end
 
-function Fingertip:endHandleDrag()
+function FingerTips:endHandleDrag()
     -- KOReader's long-hold timer is restarted by every selection change;
     -- stop it, as a normal release would.
     local hl = self.ui.highlight
@@ -550,7 +542,7 @@ end
 
 -- A "Name: current value" menu entry opening a list of choices.
 -- field: the property on self; setting: the G_reader_settings key.
-function Fingertip:choiceMenu(title, choices, field, setting)
+function FingerTips:choiceMenu(title, choices, field, setting)
     local function same(a, b)
         if type(a) == "number" and type(b) == "number" then
             return math.abs(a - b) < 0.01
@@ -584,24 +576,24 @@ function Fingertip:choiceMenu(title, choices, field, setting)
     }
 end
 
-function Fingertip:showArrange()
+function FingerTips:showArrange()
     -- Opened from the menu, which stays open underneath: refresh the whole
     -- screen, or e-ink only redraws the menu row that was tapped.
     UIManager:show(Arrange:new{ hl = self.ui.highlight }, "flashui")
 end
 
-function Fingertip:addToMainMenu(menu_items)
-    menu_items.fingertip = {
-        text = _("Fingertip"),
+function FingerTips:addToMainMenu(menu_items)
+    menu_items.fingertips = {
+        text = _("FingerTips"),
         sorting_hint = "tools",
         sub_item_table = {
             {
-                text = _("Fingertip on"),
-                help_text = _("Off: text selection works as it does without Fingertip."),
+                text = _("FingerTips on"),
+                help_text = _("Off: text selection works as it does without FingerTips."),
                 checked_func = function() return self.enabled end,
                 callback = function()
                     self.enabled = not self.enabled
-                    G_reader_settings:saveSetting("fingertip_enabled", self.enabled)
+                    G_reader_settings:saveSetting("fingertips_enabled", self.enabled)
                     if not self.enabled then
                         self:closeBar()
                         self.phase = nil
@@ -611,17 +603,16 @@ function Fingertip:addToMainMenu(menu_items)
                 separator = true,
             },
             {
-                text = _("Action bar"),
+                text = _("Customize popup"),
                 enabled_func = function() return self.enabled end,
                 keep_menu_open = true,
                 callback = function() self:showArrange() end,
                 separator = true,
             },
-            self:choiceMenu(_("Outline thickness"), BORDER_CHOICES, "border", "fingertip_border"),
-            self:choiceMenu(_("Corner rounding"), RADIUS_CHOICES, "radius", "fingertip_radius"),
-            self:choiceMenu(_("Drop shadow"), SHADOW_CHOICES, "shadow", "fingertip_shadow"),
+            self:choiceMenu(_("Outline thickness"), BORDER_CHOICES, "border", "fingertips_border"),
+            self:choiceMenu(_("Corner rounding"), RADIUS_CHOICES, "radius", "fingertips_radius"),
         },
     }
 end
 
-return Fingertip
+return FingerTips

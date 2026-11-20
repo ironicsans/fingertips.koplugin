@@ -1,7 +1,9 @@
 .DS_Store
+*.zip
 dist/
-emulator/app/
-emulator/download/
-emulator/shots/
-emulator/home/
-emulator/home-color/
+# Local test setup (KOReader's desktop build, scripted demo, screenshots).
+emulator/
+# Phone videos carry the location they were filmed at.
+*.mov
+*.MOV
+*.mp4
