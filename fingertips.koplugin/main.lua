@@ -76,6 +76,7 @@ local FingerTips = WidgetContainer:extend{
 
 function FingerTips:init()
     self.enabled = G_reader_settings:nilOrTrue("fingertips_enabled")
+    self.show_menu = G_reader_settings:nilOrTrue("fingertips_menu")
     self.lift = LIFT
     self.finger = nil -- screen point of the finger (or the dragged handle)
     self.loupe_line_y = nil -- top of the line the drag started on
@@ -156,7 +157,7 @@ function FingerTips:wrapHighlight()
     -- (With an index, it's the popup for an existing highlight: left alone.)
     local orig_onShowHighlightMenu = hl.onShowHighlightMenu
     hl.onShowHighlightMenu = function(this, index, ...)
-        if index == nil and plugin.enabled and this.selected_text and this.hold_pos then
+        if index == nil and plugin.enabled and plugin.show_menu and this.selected_text and this.hold_pos then
             local ok, shown = pcall(plugin.showBar, plugin)
             if ok and shown then return true end
             if not ok then
@@ -555,8 +556,21 @@ function FingerTips:addToMainMenu(menu_items)
                 separator = true,
             },
             {
-                text = _("Customize popup"),
+                text = _("Use FingerTips menu"),
+                help_text = _("Off: FingerTips lifts the selected line but leaves your highlight menu alone, so another plugin's menu shows instead."),
                 enabled_func = function() return self.enabled end,
+                checked_func = function() return self.show_menu end,
+                callback = function()
+                    self.show_menu = not self.show_menu
+                    G_reader_settings:saveSetting("fingertips_menu", self.show_menu)
+                    if not self.show_menu then
+                        self:closeBar()
+                    end
+                end,
+            },
+            {
+                text = _("Customize menu"),
+                enabled_func = function() return self.enabled and self.show_menu end,
                 keep_menu_open = true,
                 callback = function() self:showArrange() end,
             },
