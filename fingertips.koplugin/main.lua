@@ -69,9 +69,11 @@ local BORDER = 3
 local RADIUS = 9
 
 
+-- Not is_doc_only: the plugin also loads in the file browser, so its
+-- settings are reachable from the home screen, not only while reading.
+-- The selection hooks still only run in the reader (onReaderReady).
 local FingerTips = WidgetContainer:extend{
     name = "fingertips",
-    is_doc_only = true,
 }
 
 function FingerTips:init()
@@ -569,8 +571,21 @@ function FingerTips:addToMainMenu(menu_items)
                 end,
             },
             {
-                text = _("Customize menu"),
-                enabled_func = function() return self.enabled and self.show_menu end,
+                -- Off a book (e.g. the file browser) the action list can't be
+                -- built, so this is greyed. Say why in the label itself, not
+                -- only in the long-press help, so the greying isn't a mystery.
+                -- When it's greyed because the menu toggle above is off, that
+                -- toggle is the explanation, so leave the label plain.
+                text_func = function()
+                    if self.enabled and self.show_menu and self.ui.highlight == nil then
+                        return _("Customize menu (only with book open)")
+                    end
+                    return _("Customize menu")
+                end,
+                help_text = _("Available while you're reading a book: the list of actions comes from the open book."),
+                enabled_func = function()
+                    return self.enabled and self.show_menu and self.ui.highlight ~= nil
+                end,
                 keep_menu_open = true,
                 callback = function() self:showArrange() end,
             },
